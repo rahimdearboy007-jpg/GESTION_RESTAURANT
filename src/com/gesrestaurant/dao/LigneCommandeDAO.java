@@ -1,0 +1,192 @@
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package com.gesrestaurant.dao;
+
+import com.gesrestaurant.model.LigneCommande;
+import com.gesrestaurant.model.Commande;
+import com.gesrestaurant.model.Produit;
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+
+public class LigneCommandeDAO implements IDAO<LigneCommande> {
+    
+    private Connection connection;
+    
+    public LigneCommandeDAO(Connection connection) {
+        this.connection = connection;
+    }
+    
+    @Override
+    public boolean create(LigneCommande ligne) {
+        // CORRECTION ICI : ajout de montant_ligne dans l'INSERT
+        String sql = "INSERT INTO lignecommande (commande_id, produit_id, quantite, prix_unitaire, montant_ligne) VALUES (?, ?, ?, ?, ?)";
+        
+        try (PreparedStatement stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            stmt.setInt(1, ligne.getCommande().getId());
+            stmt.setInt(2, ligne.getProduit().getId());
+            stmt.setInt(3, ligne.getQuantite());
+            stmt.setDouble(4, ligne.getPrixUnitaire());
+            // Calcul du montant de la ligne : quantite * prix_unitaire
+            stmt.setDouble(5, ligne.getQuantite() * ligne.getPrixUnitaire());
+            
+            int rowsAffected = stmt.executeUpdate();
+            
+            if (rowsAffected > 0) {
+                ResultSet rs = stmt.getGeneratedKeys();
+                if (rs.next()) {
+                    ligne.setId(rs.getInt(1));
+                }
+                return true;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+    
+    @Override
+    public LigneCommande read(int id) {
+        String sql = "SELECT * FROM lignecommande WHERE id = ?";
+        
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, id);
+            ResultSet rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                LigneCommande ligne = new LigneCommande(
+                    rs.getInt("id"),
+                    null, // Commande sera mis à jour après
+                    null, // Produit sera mis à jour après
+                    rs.getInt("quantite"),
+                    rs.getDouble("prix_unitaire")
+                );
+                // Récupération du montant_ligne si nécessaire
+                // ligne.setMontantLigne(rs.getDouble("montant_ligne"));
+                return ligne;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+    
+    @Override
+    public boolean update(LigneCommande ligne) {
+        // CORRECTION ICI : ajout de montant_ligne dans l'UPDATE
+        String sql = "UPDATE lignecommande SET quantite = ?, prix_unitaire = ?, montant_ligne = ? WHERE id = ?";
+        
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, ligne.getQuantite());
+            stmt.setDouble(2, ligne.getPrixUnitaire());
+            // Calcul du nouveau montant
+            stmt.setDouble(3, ligne.getQuantite() * ligne.getPrixUnitaire());
+            stmt.setInt(4, ligne.getId());
+            
+            int rowsAffected = stmt.executeUpdate();
+            return rowsAffected > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+    
+    @Override
+    public boolean delete(int id) {
+        String sql = "DELETE FROM lignecommande WHERE id = ?";
+        
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, id);
+            
+            int rowsAffected = stmt.executeUpdate();
+            return rowsAffected > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+    
+    @Override
+    public List<LigneCommande> findAll() {
+        List<LigneCommande> lignes = new ArrayList<>();
+        String sql = "SELECT * FROM lignecommande ORDER BY commande_id, id";
+        
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            while (rs.next()) {
+                LigneCommande ligne = new LigneCommande(
+                    rs.getInt("id"),
+                    null,
+                    null,
+                    rs.getInt("quantite"),
+                    rs.getDouble("prix_unitaire")
+                );
+                // Si votre modèle a un attribut pour montant_ligne :
+                // ligne.setMontantLigne(rs.getDouble("montant_ligne"));
+                lignes.add(ligne);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return lignes;
+    }
+    
+    // Méthodes spécifiques
+    public List<LigneCommande> findByCommandeId(int commandeId) {
+        List<LigneCommande> lignes = new ArrayList<>();
+        String sql = "SELECT * FROM lignecommande WHERE commande_id = ? ORDER BY id";
+        
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, commandeId);
+            ResultSet rs = stmt.executeQuery();
+            
+            while (rs.next()) {
+                LigneCommande ligne = new LigneCommande(
+                    rs.getInt("id"),
+                    null,
+                    null,
+                    rs.getInt("quantite"),
+                    rs.getDouble("prix_unitaire")
+                );
+                // ligne.setMontantLigne(rs.getDouble("montant_ligne"));
+                lignes.add(ligne);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return lignes;
+    }
+    
+    public boolean deleteByCommandeId(int commandeId) {
+        String sql = "DELETE FROM lignecommande WHERE commande_id = ?";
+        
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, commandeId);
+            
+            int rowsAffected = stmt.executeUpdate();
+            return rowsAffected > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+    
+    public double getTotalByCommandeId(int commandeId) {
+        String sql = "SELECT SUM(montant_ligne) as total FROM lignecommande WHERE commande_id = ?";
+        
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, commandeId);
+            ResultSet rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                return rs.getDouble("total");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0.0;
+    }
+}
