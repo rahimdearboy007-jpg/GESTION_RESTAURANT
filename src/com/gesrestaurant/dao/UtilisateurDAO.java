@@ -19,7 +19,7 @@ public class UtilisateurDAO implements IDAO<Utilisateur> {
     
     @Override
     public boolean create(Utilisateur utilisateur) {
-        String sql = "INSERT INTO Utilisateur (login, motDePasse) VALUES (?, ?)";
+        String sql = "INSERT INTO Utilisateur (login, mot_de_passe) VALUES (?, ?)";
         
         try (PreparedStatement stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             stmt.setString(1, utilisateur.getLogin());
@@ -52,7 +52,7 @@ public class UtilisateurDAO implements IDAO<Utilisateur> {
                 return new Utilisateur(
                     rs.getInt("id"),
                     rs.getString("login"),
-                    rs.getString("motDePasse")
+                    rs.getString("mot_de_passe")
                 );
             }
         } catch (SQLException e) {
@@ -63,7 +63,7 @@ public class UtilisateurDAO implements IDAO<Utilisateur> {
     
     @Override
     public boolean update(Utilisateur utilisateur) {
-        String sql = "UPDATE Utilisateur SET login = ?, motDePasse = ? WHERE id = ?";
+        String sql = "UPDATE Utilisateur SET login = ?, mot_de_passe = ? WHERE id = ?";
         
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, utilisateur.getLogin());
@@ -105,7 +105,7 @@ public class UtilisateurDAO implements IDAO<Utilisateur> {
                 utilisateurs.add(new Utilisateur(
                     rs.getInt("id"),
                     rs.getString("login"),
-                    rs.getString("motDePasse")
+                    rs.getString("mot_de_passe")
                 ));
             }
         } catch (SQLException e) {
@@ -116,7 +116,7 @@ public class UtilisateurDAO implements IDAO<Utilisateur> {
     
     // Méthode spécifique pour l'authentification
     public Utilisateur authenticate(String login, String password) {
-        String sql = "SELECT * FROM Utilisateur WHERE login = ? AND motDePasse = ?";
+        String sql = "SELECT * FROM Utilisateur WHERE login = ? AND mot_de_passe = ?";
         
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, login);
@@ -127,7 +127,7 @@ public class UtilisateurDAO implements IDAO<Utilisateur> {
                 return new Utilisateur(
                     rs.getInt("id"),
                     rs.getString("login"),
-                    rs.getString("motDePasse")
+                    rs.getString("mot_de_passe")
                 );
             }
         } catch (SQLException e) {

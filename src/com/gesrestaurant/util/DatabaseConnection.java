@@ -4,39 +4,66 @@
  */
 package com.gesrestaurant.util;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
+import java.sql.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class DatabaseConnection {
-    private static final String URL = "jdbc:mysql://localhost:3306/gestion_restaurant";
-    private static final String USER = "root"; // À adapter
-    private static final String PASSWORD = ""; // À adapter
-    
+    private static final Logger LOGGER = Logger.getLogger(DatabaseConnection.class.getName());
     private static Connection connection = null;
     
+    // Paramètres de configuration
+    private static final String URL = "jdbc:mysql://localhost:3306/gestion_restaurant";
+    private static final String USER = "root";
+    private static final String PASSWORD = "";
+    
+    // Empêcher l'instanciation
+    private DatabaseConnection() {}
+    
     public static Connection getConnection() {
-        try {
-            if (connection == null || connection.isClosed()) {
-            Class.forName("com.mysql.jdbc.Driver");                 
-            connection = DriverManager.getConnection(URL, USER, PASSWORD);
-                System.out.println("Connexion à la BD réussie !");
+        if (connection == null) {
+            try {
+                // Charger le driver MySQL
+                Class.forName("com.mysql.jdbc.Driver");
+                
+                // Établir la connexion
+                connection = DriverManager.getConnection(URL, USER, PASSWORD);
+                
+                // Tester la connexion
+                if (connection.isValid(2)) {
+                    LOGGER.log(Level.INFO, "✅ Connexion BD établie avec succès");
+                }
+                
+            } catch (ClassNotFoundException e) {
+                LOGGER.log(Level.SEVERE, "❌ Driver MySQL non trouvé", e);
+                throw new RuntimeException("Driver MySQL non disponible: " + e.getMessage(), e);
+                
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, "❌ Erreur connexion BD", e);
+                throw new RuntimeException("Impossible de se connecter à la base de données: " + e.getMessage(), e);
             }
-        } catch (ClassNotFoundException | SQLException e) {
-            System.err.println("Erreur de connexion à la BD: " + e.getMessage());
-            e.printStackTrace();
         }
-        return connection; 
+        return connection;
     }
     
     public static void closeConnection() {
-        try {
-            if (connection != null && !connection.isClosed()) {
+        if (connection != null) {
+            try {
                 connection.close();
-                System.out.println("Connexion fermée.");
+                connection = null;
+                LOGGER.log(Level.INFO, "Connexion BD fermée");
+            } catch (SQLException e) {
+                LOGGER.log(Level.WARNING, "Erreur fermeture connexion BD", e);
             }
+        }
+    }
+    
+    public static boolean testConnection() {
+        try (Connection testConn = DriverManager.getConnection(URL, USER, PASSWORD)) {
+            return testConn.isValid(2);
         } catch (SQLException e) {
-            System.err.println("Erreur lors de la fermeture: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, " Test connexion BD échoué", e);
+            return false;
         }
     }
 }
