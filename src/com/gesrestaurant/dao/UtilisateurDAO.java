@@ -19,11 +19,12 @@ public class UtilisateurDAO implements IDAO<Utilisateur> {
     
     @Override
     public boolean create(Utilisateur utilisateur) {
-        String sql = "INSERT INTO Utilisateur (login, mot_de_passe) VALUES (?, ?)";
+        String sql = "INSERT INTO Utilisateur (login, mot_de_passe, role) VALUES (?, ?, ?)";
         
         try (PreparedStatement stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             stmt.setString(1, utilisateur.getLogin());
             stmt.setString(2, utilisateur.getMotDePasse());
+            stmt.setString(3, utilisateur.getRole());
             
             int rowsAffected = stmt.executeUpdate();
             
@@ -52,7 +53,8 @@ public class UtilisateurDAO implements IDAO<Utilisateur> {
                 return new Utilisateur(
                     rs.getInt("id"),
                     rs.getString("login"),
-                    rs.getString("mot_de_passe")
+                    rs.getString("mot_de_passe"),
+                    rs.getString("role")
                 );
             }
         } catch (SQLException e) {
@@ -63,12 +65,13 @@ public class UtilisateurDAO implements IDAO<Utilisateur> {
     
     @Override
     public boolean update(Utilisateur utilisateur) {
-        String sql = "UPDATE Utilisateur SET login = ?, mot_de_passe = ? WHERE id = ?";
+        String sql = "UPDATE Utilisateur SET login = ?, mot_de_passe = ?, role = ? WHERE id = ?";
         
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, utilisateur.getLogin());
             stmt.setString(2, utilisateur.getMotDePasse());
-            stmt.setInt(3, utilisateur.getId());
+            stmt.setString(3, utilisateur.getRole());
+            stmt.setInt(4, utilisateur.getId());
             
             int rowsAffected = stmt.executeUpdate();
             return rowsAffected > 0;
@@ -105,7 +108,8 @@ public class UtilisateurDAO implements IDAO<Utilisateur> {
                 utilisateurs.add(new Utilisateur(
                     rs.getInt("id"),
                     rs.getString("login"),
-                    rs.getString("mot_de_passe")
+                    rs.getString("mot_de_passe"),
+                    rs.getString("role")
                 ));
             }
         } catch (SQLException e) {
@@ -114,7 +118,7 @@ public class UtilisateurDAO implements IDAO<Utilisateur> {
         return utilisateurs;
     }
     
-    // Méthode spécifique pour l'authentification
+    // ✅ Méthode d'authentification avec rôle
     public Utilisateur authenticate(String login, String password) {
         String sql = "SELECT * FROM Utilisateur WHERE login = ? AND mot_de_passe = ?";
         
@@ -127,7 +131,8 @@ public class UtilisateurDAO implements IDAO<Utilisateur> {
                 return new Utilisateur(
                     rs.getInt("id"),
                     rs.getString("login"),
-                    rs.getString("mot_de_passe")
+                    rs.getString("mot_de_passe"),
+                    rs.getString("role")
                 );
             }
         } catch (SQLException e) {
@@ -136,7 +141,7 @@ public class UtilisateurDAO implements IDAO<Utilisateur> {
         return null;
     }
     
-    // Vérifier si login existe déjà
+    // ✅ Vérifier si un login existe déjà
     public boolean loginExists(String login) {
         String sql = "SELECT COUNT(*) FROM Utilisateur WHERE login = ?";
         
@@ -146,6 +151,62 @@ public class UtilisateurDAO implements IDAO<Utilisateur> {
             
             if (rs.next()) {
                 return rs.getInt(1) > 0;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+    
+    // ✅ Rechercher des utilisateurs par rôle
+    public List<Utilisateur> findByRole(String role) {
+        List<Utilisateur> utilisateurs = new ArrayList<>();
+        String sql = "SELECT * FROM Utilisateur WHERE role = ? ORDER BY login";
+        
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, role);
+            ResultSet rs = stmt.executeQuery();
+            
+            while (rs.next()) {
+                utilisateurs.add(new Utilisateur(
+                    rs.getInt("id"),
+                    rs.getString("login"),
+                    rs.getString("mot_de_passe"),
+                    rs.getString("role")
+                ));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return utilisateurs;
+    }
+    
+    // ✅ Compter les administrateurs
+    public int countAdmins() {
+        String sql = "SELECT COUNT(*) FROM Utilisateur WHERE role = 'ADMIN'";
+        
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+    
+    // ✅ Vérifier si c'est le dernier administrateur
+    public boolean isLastAdmin(int id) {
+        String sql = "SELECT COUNT(*) FROM Utilisateur WHERE role = 'ADMIN' AND id != ?";
+        
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, id);
+            ResultSet rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                return rs.getInt(1) == 0;
             }
         } catch (SQLException e) {
             e.printStackTrace();

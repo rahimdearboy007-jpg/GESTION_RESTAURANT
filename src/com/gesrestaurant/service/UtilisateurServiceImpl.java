@@ -8,6 +8,7 @@ import com.gesrestaurant.dao.UtilisateurDAO;
 import com.gesrestaurant.model.Utilisateur;
 import com.gesrestaurant.util.DatabaseConnection;
 import java.sql.Connection;
+import java.util.List;
 
 public class UtilisateurServiceImpl implements IUtilisateurService {
     
@@ -56,13 +57,19 @@ public class UtilisateurServiceImpl implements IUtilisateurService {
             return false;
         }
         
-        // Règle 3 : Login unique
+        // Règle 3 : Rôle obligatoire
+        if (utilisateur.getRole() == null || utilisateur.getRole().trim().isEmpty()) {
+            System.err.println("Erreur : Rôle vide !");
+            return false;
+        }
+        
+        // Règle 4 : Login unique
         if (!loginDisponible(utilisateur.getLogin())) {
             System.err.println("Erreur : Login '" + utilisateur.getLogin() + "' déjà utilisé !");
             return false;
         }
         
-        // Règle 4 : Valider le mot de passe
+        // Règle 5 : Valider le mot de passe
         if (!validerMotDePasse(utilisateur.getMotDePasse())) {
             System.err.println("Erreur : Mot de passe trop court (min 4 caractères) !");
             return false;
@@ -88,9 +95,15 @@ public class UtilisateurServiceImpl implements IUtilisateurService {
             }
         }
         
-        // Règle 3 : Valider mot de passe
+        // Règle 3 : Rôle obligatoire
+        if (utilisateur.getRole() == null || utilisateur.getRole().trim().isEmpty()) {
+            System.err.println("Erreur : Rôle vide !");
+            return false;
+        }
+        
+        // Règle 4 : Valider mot de passe
         if (!validerMotDePasse(utilisateur.getMotDePasse())) {
-            System.err.println("Erreur : Mot de passe trop court !");
+            System.err.println("Erreur : Mot de passe trop court (min 4 caractères) !");
             return false;
         }
         
@@ -100,7 +113,14 @@ public class UtilisateurServiceImpl implements IUtilisateurService {
     @Override
     public boolean supprimerUtilisateur(int id) {
         // Règle : Ne pas supprimer le dernier administrateur
-        // (À implémenter selon les besoins)
+        List<Utilisateur> admins = utilisateurDao.findByRole("ADMIN");
+        if (admins.size() <= 1) {
+            Utilisateur aSupprimer = utilisateurDao.read(id);
+            if (aSupprimer != null && aSupprimer.isAdmin()) {
+                System.err.println("Erreur : Impossible de supprimer le dernier administrateur !");
+                return false;
+            }
+        }
         
         return utilisateurDao.delete(id);
     }
@@ -119,5 +139,15 @@ public class UtilisateurServiceImpl implements IUtilisateurService {
     public boolean validerMotDePasse(String motDePasse) {
         // Règle simple : au moins 4 caractères
         return motDePasse != null && motDePasse.length() >= 4;
+    }
+    
+    // ✅ NOUVELLE MÉTHODE : Récupérer tous les utilisateurs
+    public List<Utilisateur> getAllUtilisateurs() {
+        return utilisateurDao.findAll();
+    }
+    
+    // ✅ NOUVELLE MÉTHODE : Récupérer les utilisateurs par rôle
+    public List<Utilisateur> getUtilisateursByRole(String role) {
+        return utilisateurDao.findByRole(role);
     }
 }

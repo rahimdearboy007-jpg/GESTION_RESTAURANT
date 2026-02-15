@@ -14,6 +14,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import com.gesrestaurant.model.Utilisateur;
+import com.gesrestaurant.util.Session;
 
 public class LoginFrame extends javax.swing.JFrame {
     private JTextField txtLogin;
@@ -23,7 +25,7 @@ public class LoginFrame extends javax.swing.JFrame {
     private JLabel lblMessage;
     private JLabel lblTitre;
     private AuthController authController;
-    
+    private JPasswordField txtPassword;
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(LoginFrame.class.getName());
 
     /**
@@ -76,6 +78,13 @@ public class LoginFrame extends javax.swing.JFrame {
         txtMotDePasse = new JPasswordField(20);
         txtMotDePasse.setFont(new Font("Arial", Font.PLAIN, 12));
         txtMotDePasse.setEchoChar('•'); // Masquage du mot de passe
+        
+        txtMotDePasse = new JPasswordField(20);
+        txtMotDePasse.setFont(new Font("Arial", Font.PLAIN, 12));
+        txtMotDePasse.setEchoChar('•');
+    
+    // 👇 TRÈS IMPORTANT - Les deux références pointent vers le même objet
+        txtPassword = txtMotDePasse;
         
         // Boutons
         btnConnexion = new JButton("Se connecter");
@@ -153,87 +162,70 @@ public class LoginFrame extends javax.swing.JFrame {
         // Info de test (à retirer en production)
         JPanel panelInfo = new JPanel();
         panelInfo.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-        JLabel lblInfo = new JLabel("<html><small><i>Compte test : admin / admin123</i></small></html>");
-        lblInfo.setForeground(Color.GRAY);
-        panelInfo.add(lblInfo);
         add(panelInfo, BorderLayout.SOUTH);
     }
+             
     private void configurerEvenements() {
-        // Bouton Connexion
-        btnConnexion.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                authentifierUtilisateur();
-            }
-    }); 
-    
-    // Entrée dans le champ mot de passe = connexion
-        txtMotDePasse.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                authentifierUtilisateur();
-            }
-        });
-        
-    btnQuitter.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                quitterApplication();
-            }
+    // ✅ BOUTON CONNEXION - Utilise la méthode qui récupère l'utilisateur complet
+    btnConnexion.addActionListener(new ActionListener() {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            btnLoginActionPerformed(e);
+        }
     });
+    
+    // ✅ TOUCHE ENTREE dans le champ mot de passe - Même comportement
+    txtMotDePasse.addActionListener(new ActionListener() {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            btnLoginActionPerformed(e);
+        }
+    });
+    
+    // ✅ BOUTON QUITTER
+    btnQuitter.addActionListener(new ActionListener() {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            quitterApplication();
+        }
+    });
+    
+    // ✅ FERMETURE FENETRE
     addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override
-            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-                quitterApplication();
-            }
-        });
-    }
-    
-    private void authentifierUtilisateur() {
-        // Récupération des valeurs
+        @Override
+        public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+            quitterApplication();
+        }
+    });
+}
+   
+        private void btnLoginActionPerformed(java.awt.event.ActionEvent evt) {
         String login = txtLogin.getText().trim();
-        String motDePasse = new String(txtMotDePasse.getPassword()).trim();
-        
-        // Validation visuelle
-        if (login.isEmpty() || motDePasse.isEmpty()) {
-            afficherMessage("Veuillez remplir tous les champs", Color.RED);
-            return;
-    }
-    
-         try {
-            // Appel au contrôleur MVC
-            boolean authentifie = authController.authentifier(login, motDePasse);
-            
-            if (authentifie) {
-                afficherMessage("Connexion réussie ! Redirection...", new Color(0, 153, 0));
-                
-                // Délai pour voir le message
-                Timer timer = new Timer(1000, new ActionListener() {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        // Fermer cette fenêtre
-                        dispose();
-                        
-                        // Ouvrir le menu principal
-                        SwingUtilities.invokeLater(() -> {
-                            MainMenuFrame mainMenu = new MainMenuFrame();
-                            mainMenu.setVisible(true);
-                        });
-                    }
-                });
-                timer.setRepeats(false);
-                timer.start();
-                
-            } else {
-                afficherMessage("Login ou mot de passe incorrect", Color.RED);
-                txtMotDePasse.setText("");
-                txtLogin.requestFocus();
-            }
-            
-        } catch (Exception ex) {
-            afficherMessage("Erreur d'authentification : " + ex.getMessage(), Color.RED);
+        String password = new String(txtPassword.getPassword());
+
+        AuthController authController = new AuthController();
+
+        // ✅ Vérifier l'authentification ET récupérer l'utilisateur
+        Utilisateur utilisateur = authController.getUtilisateurAuthentifie(login, password);
+
+        if (utilisateur != null) {
+            // ✅ STOCKER L'UTILISATEUR DANS LA SESSION
+            Session.setUtilisateur(utilisateur);
+
+            JOptionPane.showMessageDialog(this, 
+                "✅ Connexion réussie !\nBienvenue " + utilisateur.getLogin() + 
+                " (" + utilisateur.getRole() + ")", 
+                "Succès", JOptionPane.INFORMATION_MESSAGE);
+
+            dispose();
+            new MainMenuFrame().setVisible(true);
+        } else {
+            JOptionPane.showMessageDialog(this, 
+                "❌ Login ou mot de passe incorrect", 
+                "Erreur", JOptionPane.ERROR_MESSAGE);
         }
     }
+    
     
     /**
      * Affiche un message à l'utilisateur
@@ -299,8 +291,8 @@ public static void main(String args[]) {
         
         // AUTO-TEST (optionnel)
         // Remplit automatiquement les champs pour tester
-        frame.txtLogin.setText("admin");
-        frame.txtMotDePasse.setText("admin123");
+        frame.txtLogin.setText("RVH1M");
+        frame.txtMotDePasse.setText("RVH1M");
         //frame.btnConnexion.doClick(); // Décommente pour auto-clic
     });
 }

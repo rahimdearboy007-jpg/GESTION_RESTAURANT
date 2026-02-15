@@ -15,6 +15,8 @@ import com.gesrestaurant.controller.*;
 import java.text.SimpleDateFormat;
 import com.gesrestaurant.util.DatabaseConnection;
 import java.sql.Connection;
+import java.util.List;
+
 
 
 /**
@@ -32,7 +34,7 @@ public class GestionProduitFrame extends javax.swing.JFrame {
     private JTable tableProduits;
     private DefaultTableModel tableModel;
     private JTextField txtNom, txtPrix, txtStock, txtSeuil;
-    private JComboBox<String> comboCategories;
+    private JComboBox<Categorie> comboCategories;
     private JLabel lblStatus;
     private ProduitDAO produitDAO;
     private CategorieDAO categorieDAO;
@@ -41,7 +43,18 @@ public class GestionProduitFrame extends javax.swing.JFrame {
      * Creates new form GestionProduitFrame
      */
     public GestionProduitFrame() {
-        
+        try {
+        Connection conn = DatabaseConnection.getConnection();
+        this.categorieDAO = new CategorieDAO(conn);
+        this.produitDAO = new ProduitDAO(conn, this.categorieDAO);
+        logger.info("✅ Connexion BDD établie");
+    } catch (Exception e) {
+        logger.severe("❌ Erreur connexion BDD: " + e.getMessage());
+        JOptionPane.showMessageDialog(this,
+            "Impossible de se connecter à la base de données.\n" +
+            "L'application fonctionnera en mode démonstration.",
+            "Erreur de connexion", JOptionPane.WARNING_MESSAGE);
+    }
         initComponentsCustom();
         setTitle("📦 Gestion des Produits & Catégories");
         setSize(1200, 750);
@@ -76,6 +89,17 @@ public class GestionProduitFrame extends javax.swing.JFrame {
         btnRetour.setFocusPainted(false);
         btnRetour.setCursor(new Cursor(Cursor.HAND_CURSOR));
         btnRetour.addActionListener(e -> dispose());
+        // MODIFIER CES LIGNES (vers ligne 95)
+        JButton btnNouveau = createToolButton("➕", "Nouveau produit", "Ctrl+N", SUCCESS_COLOR);
+        btnNouveau.addActionListener(e -> nouveauProduit());  // ← AJOUTER
+
+        JButton btnModifier = createToolButton("✏️", "Modifier", "Ctrl+E", ACCENT_COLOR);
+        btnModifier.addActionListener(e -> modifierProduit());  // ← AJOUTER
+
+        JButton btnSupprimer = createToolButton("🗑️", "Supprimer", "Suppr", DANGER_COLOR);
+        btnSupprimer.addActionListener(e -> supprimerProduit());  // ← AJOUTER
+
+        
         
         // Effet de survol
         btnRetour.addMouseListener(new MouseAdapter() {
@@ -104,13 +128,29 @@ public class GestionProduitFrame extends javax.swing.JFrame {
             BorderFactory.createEmptyBorder(10, 20, 10, 20)
         ));
         
-        toolBarPanel.add(createToolButton("➕", "Nouveau produit", "Ctrl+N", SUCCESS_COLOR));
-        toolBarPanel.add(createToolButton("✏️", "Modifier", "Ctrl+E", ACCENT_COLOR));
-        toolBarPanel.add(createToolButton("🗑️", "Supprimer", "Suppr", DANGER_COLOR));
+        toolBarPanel.add(btnNouveau);   // ✅ BOUTON AVEC ACTION !
+        toolBarPanel.add(btnModifier);  // ✅ BOUTON AVEC ACTION !
+        toolBarPanel.add(btnSupprimer); // ✅ BOUTON AVEC ACTION !
         toolBarPanel.add(Box.createHorizontalStrut(20));
-        toolBarPanel.add(createToolButton("🔍", "Rechercher", "Ctrl+F", new Color(100, 100, 100)));
-        toolBarPanel.add(createToolButton("📤", "Exporter", "Ctrl+E", new Color(100, 100, 100)));
-        toolBarPanel.add(createToolButton("🖨️", "Imprimer", "Ctrl+P", new Color(100, 100, 100)));
+        // ✅ Création des boutons avec variables
+        JButton btnRechercher = createToolButton("🔍", "Rechercher", "Ctrl+F", new Color(100, 100, 100) );
+        btnRechercher.addActionListener(e -> rechercherProduits());
+
+        JButton btnExporter = createToolButton("📤", "Exporter", "Ctrl+E", new Color(100, 100, 100));
+        btnExporter.addActionListener(e -> 
+        JOptionPane.showMessageDialog(this, "Export à venir...")
+        );
+
+        JButton btnImprimer = createToolButton("🖨️", "Imprimer", "Ctrl+P", new Color(100, 100, 100));
+        btnImprimer.addActionListener(e -> 
+        JOptionPane.showMessageDialog(this, "Impression à venir...")
+        );
+
+        // ✅ Ajout des boutons au panel
+        toolBarPanel.add(btnRechercher);
+        toolBarPanel.add(btnExporter);
+        toolBarPanel.add(btnImprimer);
+        
         
         add(toolBarPanel, BorderLayout.NORTH);
         
@@ -149,7 +189,7 @@ public class GestionProduitFrame extends javax.swing.JFrame {
         leftPanel.add(leftTitlePanel, BorderLayout.NORTH);
         
         // Tableau des produits
-        String[] columns = {"ID", "Nom", "Catégorie", "Prix (€)", "Stock", "Seuil", "Statut"};
+        String[] columns = {"ID", "Nom", "Catégorie", "Prix (F CFA)", "Stock", "Seuil", "Statut"};
         tableModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -199,6 +239,12 @@ public class GestionProduitFrame extends javax.swing.JFrame {
         tableProduits.setGridColor(new Color(240, 240, 240));
         tableProduits.setSelectionBackground(new Color(52, 152, 219, 50));
         tableProduits.setSelectionForeground(Color.BLACK);
+        tableProduits.getSelectionModel().addListSelectionListener(e -> {
+        if (!e.getValueIsAdjusting()) {
+            chargerProduitSelectionne();
+        }
+    });
+        
         
         // En-tête du tableau
         JTableHeader header = tableProduits.getTableHeader();
@@ -213,6 +259,7 @@ public class GestionProduitFrame extends javax.swing.JFrame {
         scrollPane.getViewport().setBackground(Color.WHITE);
         
         leftPanel.add(scrollPane, BorderLayout.CENTER);
+        
         
         // ===== PANEL DROIT - Formulaire =====
         JPanel rightPanel = new JPanel(new BorderLayout(0, 15));
@@ -285,7 +332,7 @@ public class GestionProduitFrame extends javax.swing.JFrame {
         // Prix
         gbc.gridx = 0; gbc.gridy = 2;
         gbc.weightx = 0.3;
-        JLabel lblPrix = new JLabel("Prix de vente (€) *");
+        JLabel lblPrix = new JLabel("Prix de vente (F CFA) *");
         lblPrix.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         lblPrix.setForeground(PRIMARY_COLOR);
         formPanel.add(lblPrix, gbc);
@@ -351,6 +398,7 @@ public class GestionProduitFrame extends javax.swing.JFrame {
         btnSave.setBorder(BorderFactory.createEmptyBorder(12, 30, 12, 30));
         btnSave.setFocusPainted(false);
         btnSave.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnSave.addActionListener(e -> enregistrerProduit());
         
         JButton btnClear = new JButton("🔄 Vider");
         btnClear.setFont(new Font("Segoe UI", Font.PLAIN, 14));
@@ -359,6 +407,7 @@ public class GestionProduitFrame extends javax.swing.JFrame {
         btnClear.setBorder(BorderFactory.createEmptyBorder(12, 30, 12, 30));
         btnClear.setFocusPainted(false);
         btnClear.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnClear.addActionListener(e -> viderFormulaire());
         
         // Effets de survol
         btnSave.addMouseListener(new MouseAdapter() {
@@ -413,6 +462,275 @@ public class GestionProduitFrame extends javax.swing.JFrame {
         chargerCategories();
         chargerProduits();
     }
+        // ============================================
+// MÉTHODES MÉTIER
+// ============================================
+
+    private void nouveauProduit() {
+        viderFormulaire();
+        txtNom.requestFocus();
+    }
+
+    private void modifierProduit() {
+        int selectedRow = tableProduits.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(this, 
+            "Sélectionnez un produit à modifier",
+            "Aucune sélection", JOptionPane.WARNING_MESSAGE);
+        return;
+        }
+    chargerProduitSelectionne();
+    }
+
+    private void supprimerProduit() {
+        int selectedRow = tableProduits.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(this, 
+            "Sélectionnez un produit à supprimer",
+            "Aucune sélection", JOptionPane.WARNING_MESSAGE);
+            return;
+    }
+    
+    int id = (int) tableModel.getValueAt(selectedRow, 0);
+    String nom = (String) tableModel.getValueAt(selectedRow, 1);
+    
+    int confirm = JOptionPane.showConfirmDialog(this,
+        "Supprimer le produit : " + nom + " ?",
+        "Confirmation", JOptionPane.YES_NO_OPTION);
+        
+    if (confirm == JOptionPane.YES_OPTION) {
+        try {
+            if (produitDAO != null) {
+                produitDAO.delete(id);
+                JOptionPane.showMessageDialog(this, "✅ Produit supprimé !");
+            }
+            chargerProduits();
+            viderFormulaire();
+        } catch (Exception e) {
+            logger.severe("Erreur suppression: " + e.getMessage());
+            JOptionPane.showMessageDialog(this,
+                "Erreur lors de la suppression",
+                "Erreur", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+    }
+
+    private void enregistrerProduit() {
+    // Validation
+        if (txtNom.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Le nom est obligatoire");
+            txtNom.requestFocus();
+            return;
+        }
+    
+    Categorie cat = (Categorie) comboCategories.getSelectedItem();
+    if (cat == null) {
+        JOptionPane.showMessageDialog(this, "Sélectionnez une catégorie");
+        return;
+    }
+    
+    try {
+        double prix = Double.parseDouble(txtPrix.getText().trim());
+        int stock = Integer.parseInt(txtStock.getText().trim());
+        int seuil = Integer.parseInt(txtSeuil.getText().trim());
+        
+        if (prix <= 0 || stock < 0 || seuil < 0) {
+            throw new NumberFormatException();
+        }
+        
+        Produit produit = new Produit(
+            txtNom.getText().trim(),
+            cat,
+            prix,
+            stock,
+            seuil
+        );
+        
+        int selectedRow = tableProduits.getSelectedRow();
+        
+        if (selectedRow == -1) {
+            // AJOUT
+            if (produitDAO != null) {
+                produitDAO.create(produit);
+                JOptionPane.showMessageDialog(this, "✅ Produit ajouté !");
+            }
+        } else {
+            // MODIFICATION
+            int id = (int) tableModel.getValueAt(selectedRow, 0);
+            produit.setId(id);
+            if (produitDAO != null) {
+                produitDAO.update(produit);
+                JOptionPane.showMessageDialog(this, "✅ Produit modifié !");
+            }
+        }
+        
+        chargerProduits();
+        viderFormulaire();
+        
+    } catch (NumberFormatException e) {
+        JOptionPane.showMessageDialog(this, 
+            "Valeurs numériques invalides\n" +
+            "Prix > 0, Stock ≥ 0, Seuil ≥ 0",
+            "Erreur", JOptionPane.ERROR_MESSAGE);
+    } catch (Exception e) {
+        logger.severe("Erreur enregistrement: " + e.getMessage());
+        JOptionPane.showMessageDialog(this,
+            "Erreur lors de l'enregistrement",
+            "Erreur BDD", JOptionPane.ERROR_MESSAGE);
+    }
+    }
+    private void rechercherProduits() {
+    // Dialogue de recherche
+        String motCle = JOptionPane.showInputDialog(this,
+        "🔍 Entrez un nom de produit ou une catégorie :",
+        "Rechercher un produit",
+        JOptionPane.QUESTION_MESSAGE);
+    
+        if (motCle == null || motCle.trim().isEmpty()) {
+            return; // Annulé ou vide
+        }
+    
+        motCle = motCle.trim().toLowerCase();
+    
+    // Mode démo (pas de BDD)
+    if (produitDAO == null) {
+        rechercherProduitsDemo(motCle);
+        return;
+    }
+    
+    // Mode BDD
+    try {
+        // Appel à la méthode search() du DAO
+        List<Produit> resultats = produitDAO.search(motCle);
+        tableModel.setRowCount(0);
+        
+        if (resultats.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                "🔍 Aucun produit trouvé pour : \"" + motCle + "\"",
+                "Résultat de recherche",
+                JOptionPane.INFORMATION_MESSAGE);
+            chargerProduits(); // Recharge tout
+            return;
+        }
+        
+        for (Produit p : resultats) {
+            tableModel.addRow(new Object[]{
+                p.getId(),
+                p.getNom(),
+                p.getCategorie().getLibelle(),
+                p.getPrixVente(),
+                p.getStockActuel(),
+                p.getSeuilAlerte(),
+                p.getStatut()
+            });
+        }
+        
+        updateCountLabel();
+        
+        JOptionPane.showMessageDialog(this,
+            "🔍 " + resultats.size() + " produit(s) trouvé(s)",
+            "Résultat de recherche",
+            JOptionPane.INFORMATION_MESSAGE);
+            
+    }   catch (Exception e) {
+            logger.severe("Erreur recherche: " + e.getMessage());
+            JOptionPane.showMessageDialog(this,
+            "Erreur lors de la recherche",
+            "Erreur", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+    private void rechercherProduitsDemo(String motCle) {
+    // Simuler une recherche dans les données de démo
+    List<Object[]> resultats = new ArrayList<>();
+    Object[][] tousProduits = {
+        {1, "Coca-Cola 33cl", "Boissons", 2.50, 100, 20, "✅ OK"},
+        {2, "Eau minérale", "Boissons", 1.50, 150, 30, "✅ OK"},
+        {3, "Pizza Margherita", "Plats principaux", 8.50, 50, 10, "✅ OK"},
+        {4, "Salade César", "Entrées", 6.50, 30, 5, "✅ OK"},
+        {5, "Tiramisu", "Desserts", 4.50, 40, 8, "✅ OK"},
+        {6, "Frites", "Snacks", 3.00, 200, 50, "✅ OK"}
+    };
+    
+    for (Object[] p : tousProduits) {
+        String nom = p[1].toString().toLowerCase();
+        String categorie = p[2].toString().toLowerCase();
+        
+        if (nom.contains(motCle) || categorie.contains(motCle)) {
+            resultats.add(p);
+        }
+    }
+    
+    tableModel.setRowCount(0);
+    
+    if (resultats.isEmpty()) {
+        JOptionPane.showMessageDialog(this,
+            "🔍 Aucun produit trouvé pour : \"" + motCle + "\"",
+            "Résultat de recherche",
+            JOptionPane.INFORMATION_MESSAGE);
+        chargerProduits();
+        return;
+    }
+    
+    for (Object[] p : resultats) {
+        tableModel.addRow(p);
+    }
+    
+    updateCountLabel();
+    
+    JOptionPane.showMessageDialog(this,
+            "🔍 " + resultats.size() + " produit(s) trouvé(s) (mode démo)",
+            "Résultat de recherche",
+            JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void viderFormulaire() {
+    txtNom.setText("");
+    txtPrix.setText("");
+    txtStock.setText("");
+    txtSeuil.setText("");
+    comboCategories.setSelectedIndex(0);
+    tableProduits.clearSelection();
+}
+    
+
+private void chargerProduitSelectionne() {
+    int selectedRow = tableProduits.getSelectedRow();
+    if (selectedRow == -1) return;
+    
+    txtNom.setText(tableModel.getValueAt(selectedRow, 1).toString());
+    txtPrix.setText(tableModel.getValueAt(selectedRow, 3).toString());
+    txtStock.setText(tableModel.getValueAt(selectedRow, 4).toString());
+    txtSeuil.setText(tableModel.getValueAt(selectedRow, 5).toString());
+    
+    // Sélectionner la catégorie
+    String catLibelle = tableModel.getValueAt(selectedRow, 2).toString();
+    for (int i = 0; i < comboCategories.getItemCount(); i++) {
+        Categorie cat = comboCategories.getItemAt(i);
+        if (cat != null && cat.getLibelle().equals(catLibelle)) {
+            comboCategories.setSelectedIndex(i);
+            break;
+        }
+    }
+}
+
+private void fallbackProduits() {
+    tableModel.setRowCount(0);
+    
+    Object[][] produits = {
+        {1, "Coca-Cola 33cl", "Boissons", 2.50, 100, 20, "✅ OK"},
+        {2, "Eau minérale", "Boissons", 1.50, 150, 30, "✅ OK"},
+        {3, "Pizza Margherita", "Plats principaux", 8.50, 50, 10, "✅ OK"},
+        {4, "Salade César", "Entrées", 6.50, 30, 5, "✅ OK"},
+        {5, "Tiramisu", "Desserts", 4.50, 40, 8, "✅ OK"},
+        {6, "Frites", "Snacks", 3.00, 200, 50, "✅ OK"}
+    };
+    
+    for (Object[] p : produits) {
+        tableModel.addRow(p);
+    }
+    
+    updateCountLabel();
+}
         
         private JButton createToolButton(String emoji, String text, String shortcut, Color bgColor) {
         JButton button = new JButton(emoji + " " + text) {
@@ -448,53 +766,80 @@ public class GestionProduitFrame extends javax.swing.JFrame {
     }
         
     private void chargerCategories() {
-        // TODO: Charger depuis CategorieDAO
-        comboCategories.removeAllItems();
-        comboCategories.addItem("Sélectionnez une catégorie");
-        comboCategories.addItem("🍕 Plats");
-        comboCategories.addItem("🥤 Boissons");
-        comboCategories.addItem("🍰 Desserts");
-        comboCategories.addItem("🥗 Entrées");
-    }
+    if (categorieDAO == null) {
+    // Mode démo - SANS émojis !
+    comboCategories.removeAllItems();
+    comboCategories.addItem(null);
+    comboCategories.addItem(new Categorie(1, "Boissons"));
+    comboCategories.addItem(new Categorie(2, "Plats principaux"));
+    comboCategories.addItem(new Categorie(3, "Entrées"));
+    comboCategories.addItem(new Categorie(4, "Desserts"));
+    comboCategories.addItem(new Categorie(5, "Snacks"));
+    return;
+}
     
-        private void chargerProduits() {
-        // TODO: Charger depuis ProduitDAO
-        tableModel.setRowCount(0);
+    try {
+        List<Categorie> categories = categorieDAO.findAll();
+        comboCategories.removeAllItems();
+        comboCategories.addItem(null); // Option vide
         
-        // Données d'exemple
-        Object[][] produits = {
-            {1, "Pizza Margherita", "🍕 Plats", 12.50, 45, 10, "✅ OK"},
-            {2, "Burger Classic", "🍕 Plats", 10.00, 32, 8, "✅ OK"},
-            {3, "Coca-Cola", "🥤 Boissons", 3.50, 120, 20, "✅ OK"},
-            {4, "Tiramisu", "🍰 Desserts", 6.50, 15, 5, "⚠️ Bientôt épuisé"},
-            {5, "Salade César", "🥗 Entrées", 8.00, 8, 10, "🔴 Stock critique"},
-            {6, "Eau minérale", "🥤 Boissons", 2.00, 50, 15, "✅ OK"},
-            {7, "Mousse au chocolat", "🍰 Desserts", 5.50, 12, 5, "⚠️ Bientôt épuisé"},
-            {8, "Steak frites", "🍕 Plats", 15.00, 22, 8, "✅ OK"}
-        };
-        
-        for (Object[] produit : produits) {
-            tableModel.addRow(produit);
+        for (Categorie cat : categories) {
+            comboCategories.addItem(cat);
         }
+    } catch (Exception e) {
+        logger.severe("Erreur chargement catégories: " + e.getMessage());
+    }
+}
+    
+    private void chargerProduits() {
+        if (produitDAO == null) {
+            fallbackProduits();
+        return;
+        }
+    
+        try {
+            List<Produit> produits = produitDAO.findAll();
+            tableModel.setRowCount(0);
+        
+            for (Produit p : produits) {
+                tableModel.addRow(new Object[]{
+                    p.getId(),
+                    p.getNom(),
+                    p.getCategorie().getLibelle(),
+                    p.getPrixVente(),
+                    p.getStockActuel(),
+                    p.getSeuilAlerte(),
+                    p.getStatut()
+                });
+            }
         
         // Mettre à jour le compteur
-        try {
-            Component[] leftComponents = ((JPanel) ((JSplitPane) getContentPane()
-                .getComponent(2)).getLeftComponent()).getComponents();
-            for (Component comp : leftComponents) {
-                if (comp instanceof JPanel) {
-                    Component[] titleComps = ((JPanel) comp).getComponents();
-                    for (Component c : titleComps) {
-                        if (c instanceof JLabel && ((JLabel) c).getText().contains("produit")) {
-                            ((JLabel) c).setText(tableModel.getRowCount() + " produits");
-                        }
+            updateCountLabel();
+        
+        } catch (Exception e) {
+            logger.severe("Erreur chargement produits: " + e.getMessage());
+            fallbackProduits();
+        }
+    }
+
+private void updateCountLabel() {
+    try {
+        Component[] leftComponents = ((JPanel) ((JSplitPane) getContentPane()
+            .getComponent(2)).getLeftComponent()).getComponents();
+        for (Component comp : leftComponents) {
+            if (comp instanceof JPanel) {
+                Component[] titleComps = ((JPanel) comp).getComponents();
+                for (Component c : titleComps) {
+                    if (c instanceof JLabel && ((JLabel) c).getText().contains("produit")) {
+                        ((JLabel) c).setText(tableModel.getRowCount() + " produits");
                     }
                 }
             }
-        } catch (Exception e) {
-            // Ignorer les erreurs de mise à jour du compteur
         }
+    } catch (Exception e) {
+        // Ignorer
     }
+}
 
     /**
      * This method is called from within the constructor to initialize the form.

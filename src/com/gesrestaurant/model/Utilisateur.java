@@ -8,15 +8,17 @@ public class Utilisateur {
     private int id;
     private String login;
     private String motDePasse;
+    private String role;
     
     // Constructeurs
     public Utilisateur() {
     }
     
-    public Utilisateur(int id, String login, String motDePasse) {
+    public Utilisateur(int id, String login, String motDePasse, String role) {
         this.id = id;
         this.login = login;
         this.motDePasse = motDePasse;
+        this.role = role;
     }
     
     public Utilisateur(String login, String motDePasse) {
@@ -47,6 +49,13 @@ public class Utilisateur {
     
     public void setMotDePasse(String motDePasse) {
         this.motDePasse = motDePasse;
+    }
+    
+    public String getRole() { return role; }  // ← AJOUTE
+    public void setRole(String role) { this.role = role; }  // ← AJOUTE
+    
+    public boolean isAdmin() {
+        return "ADMIN".equals(role);
     }
     
     // toString

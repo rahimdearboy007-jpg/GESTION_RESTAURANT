@@ -170,6 +170,39 @@ public class ProduitDAO implements IDAO<Produit> {
         }
         return produits;
     }
+    public List<Produit> search(String motCle) {
+    List<Produit> produits = new ArrayList<>();
+    String sql = "SELECT p.*, c.libelle as categorie_libelle FROM Produit p " +
+                 "JOIN Categorie c ON p.categorie_id = c.id " +
+                 "WHERE p.nom LIKE ? OR c.libelle LIKE ? " +
+                 "ORDER BY p.nom";
+    
+    try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+        String pattern = "%" + motCle + "%";
+        stmt.setString(1, pattern);
+        stmt.setString(2, pattern);
+        ResultSet rs = stmt.executeQuery();
+        
+        while (rs.next()) {
+            Categorie categorie = new Categorie(
+                rs.getInt("categorie_id"),
+                rs.getString("categorie_libelle")
+            );
+            
+            produits.add(new Produit(
+                rs.getInt("id"),
+                rs.getString("nom"),
+                categorie,
+                rs.getDouble("prix_vente"),
+                rs.getInt("stock_actuel"),
+                rs.getInt("seuil_alerte")
+            ));
+        }
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+        return produits;
+    }
     
     public List<Produit> findStockBelowSeuil() {
         List<Produit> produits = new ArrayList<>();

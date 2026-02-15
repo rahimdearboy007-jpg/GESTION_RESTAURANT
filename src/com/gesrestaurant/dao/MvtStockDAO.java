@@ -38,6 +38,7 @@ public class MvtStockDAO implements IDAO<MouvementStock> {
                 }
                 return true;
             }
+            
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -46,16 +47,26 @@ public class MvtStockDAO implements IDAO<MouvementStock> {
     
     @Override
     public MouvementStock read(int id) {
-        String sql = "SELECT * FROM mouvementstock WHERE id = ?";
+        String sql = "SELECT m.*, p.id as produit_id, p.nom as produit_nom, " +
+                     "p.categorie_id, p.prix_vente, p.stock_actuel, p.seuil_alerte " +
+                     "FROM mouvementstock m " +
+                     "JOIN produit p ON m.produit_id = p.id " +
+                     "WHERE m.id = ?";
         
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setInt(1, id);
             ResultSet rs = stmt.executeQuery();
             
             if (rs.next()) {
+                // Créer le produit
+                Produit produit = new Produit();
+                produit.setId(rs.getInt("produit_id"));
+                produit.setNom(rs.getString("produit_nom"));
+                
+                // Créer et retourner le mouvement
                 return new MouvementStock(
                     rs.getInt("id"),
-                    null, // Produit sera mis à jour après
+                    produit,
                     rs.getString("type"),
                     rs.getInt("quantite"),
                     rs.getTimestamp("date_mouvement"),
@@ -102,20 +113,32 @@ public class MvtStockDAO implements IDAO<MouvementStock> {
     @Override
     public List<MouvementStock> findAll() {
         List<MouvementStock> mouvements = new ArrayList<>();
-        String sql = "SELECT * FROM mouvementstock ORDER BY date_mouvement DESC";
+        String sql = "SELECT m.*, p.id as produit_id, p.nom as produit_nom, " +
+                     "p.categorie_id, p.prix_vente, p.stock_actuel, p.seuil_alerte " +
+                     "FROM mouvementstock m " +
+                     "JOIN produit p ON m.produit_id = p.id " +
+                     "ORDER BY m.date_mouvement DESC";
         
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             
             while (rs.next()) {
-                mouvements.add(new MouvementStock(
+                // 1. Créer le produit
+                Produit produit = new Produit();
+                produit.setId(rs.getInt("produit_id"));
+                produit.setNom(rs.getString("produit_nom"));
+                
+                // 2. Créer le mouvement avec le produit
+                MouvementStock mouvement = new MouvementStock(
                     rs.getInt("id"),
-                    null,
+                    produit,
                     rs.getString("type"),
                     rs.getInt("quantite"),
                     rs.getTimestamp("date_mouvement"),
                     rs.getString("motif")
-                ));
+                );
+                
+                mouvements.add(mouvement);
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -123,19 +146,28 @@ public class MvtStockDAO implements IDAO<MouvementStock> {
         return mouvements;
     }
     
-    // Méthodes spécifiques
+    // ===== MÉTHODES SPÉCIFIQUES =====
+    
     public List<MouvementStock> findByProduit(int produitId) {
         List<MouvementStock> mouvements = new ArrayList<>();
-        String sql = "SELECT * FROM mouvementstock WHERE produit_id = ? ORDER BY date_mouvement DESC";
+        String sql = "SELECT m.*, p.id as produit_id, p.nom as produit_nom " +
+                     "FROM mouvementstock m " +
+                     "JOIN produit p ON m.produit_id = p.id " +
+                     "WHERE m.produit_id = ? " +
+                     "ORDER BY m.date_mouvement DESC";
         
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setInt(1, produitId);
             ResultSet rs = stmt.executeQuery();
             
             while (rs.next()) {
+                Produit produit = new Produit();
+                produit.setId(rs.getInt("produit_id"));
+                produit.setNom(rs.getString("produit_nom"));
+                
                 mouvements.add(new MouvementStock(
                     rs.getInt("id"),
-                    null,
+                    produit,
                     rs.getString("type"),
                     rs.getInt("quantite"),
                     rs.getTimestamp("date_mouvement"),
@@ -150,16 +182,24 @@ public class MvtStockDAO implements IDAO<MouvementStock> {
     
     public List<MouvementStock> findByType(String type) {
         List<MouvementStock> mouvements = new ArrayList<>();
-        String sql = "SELECT * FROM mouvementstock WHERE type = ? ORDER BY date_mouvement DESC";
+        String sql = "SELECT m.*, p.id as produit_id, p.nom as produit_nom " +
+                     "FROM mouvementstock m " +
+                     "JOIN produit p ON m.produit_id = p.id " +
+                     "WHERE m.type = ? " +
+                     "ORDER BY m.date_mouvement DESC";
         
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, type);
             ResultSet rs = stmt.executeQuery();
             
             while (rs.next()) {
+                Produit produit = new Produit();
+                produit.setId(rs.getInt("produit_id"));
+                produit.setNom(rs.getString("produit_nom"));
+                
                 mouvements.add(new MouvementStock(
                     rs.getInt("id"),
-                    null,
+                    produit,
                     rs.getString("type"),
                     rs.getInt("quantite"),
                     rs.getTimestamp("date_mouvement"),
@@ -174,17 +214,56 @@ public class MvtStockDAO implements IDAO<MouvementStock> {
     
     public List<MouvementStock> findByDateRange(Date dateDebut, Date dateFin) {
         List<MouvementStock> mouvements = new ArrayList<>();
-        String sql = "SELECT * FROM mouvementstock WHERE date_mouvement BETWEEN ? AND ? ORDER BY date_mouvement DESC";
+        String sql = "SELECT m.*, p.id as produit_id, p.nom as produit_nom " +
+                     "FROM mouvementstock m " +
+                     "JOIN produit p ON m.produit_id = p.id " +
+                     "WHERE DATE(m.date_mouvement) BETWEEN ? AND ? " +
+                     "ORDER BY m.date_mouvement DESC";
         
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setDate(1, dateDebut);
-            stmt.setDate(2, dateFin);
+            stmt.setDate(1, new java.sql.Date(dateDebut.getTime()));
+            stmt.setDate(2, new java.sql.Date(dateFin.getTime()));
             ResultSet rs = stmt.executeQuery();
             
             while (rs.next()) {
+                Produit produit = new Produit();
+                produit.setId(rs.getInt("produit_id"));
+                produit.setNom(rs.getString("produit_nom"));
+                
                 mouvements.add(new MouvementStock(
                     rs.getInt("id"),
-                    null,
+                    produit,
+                    rs.getString("type"),
+                    rs.getInt("quantite"),
+                    rs.getTimestamp("date_mouvement"),
+                    rs.getString("motif")
+                ));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return mouvements;
+    }
+    
+    public List<MouvementStock> findRecent(int limit) {
+        List<MouvementStock> mouvements = new ArrayList<>();
+        String sql = "SELECT m.*, p.id as produit_id, p.nom as produit_nom " +
+                     "FROM mouvementstock m " +
+                     "JOIN produit p ON m.produit_id = p.id " +
+                     "ORDER BY m.date_mouvement DESC LIMIT ?";
+        
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, limit);
+            ResultSet rs = stmt.executeQuery();
+            
+            while (rs.next()) {
+                Produit produit = new Produit();
+                produit.setId(rs.getInt("produit_id"));
+                produit.setNom(rs.getString("produit_nom"));
+                
+                mouvements.add(new MouvementStock(
+                    rs.getInt("id"),
+                    produit,
                     rs.getString("type"),
                     rs.getInt("quantite"),
                     rs.getTimestamp("date_mouvement"),

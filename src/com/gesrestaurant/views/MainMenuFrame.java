@@ -12,6 +12,17 @@ import java.awt.geom.*;
 import java.util.*;
 import javax.swing.Timer;
 import java.text.SimpleDateFormat;
+import com.gesrestaurant.util.DatabaseConnection;
+import com.gesrestaurant.model.*;
+import com.gesrestaurant.dao.*;
+import java.sql.Connection;
+import com.gesrestaurant.model.Commande;
+import java.util.List;
+import com.gesrestaurant.views.GestionStockFrame;
+import com.gesrestaurant.util.Session;
+import com.gesrestaurant.views.AideGuideFrame;
+import com.gesrestaurant.views.AideRaccourcisFrame;
+import com.gesrestaurant.views.AideContactFrame;
 
 
 /**
@@ -30,6 +41,14 @@ public class MainMenuFrame extends javax.swing.JFrame {
     private Color SUCCESS_COLOR = new Color(39, 174, 96);
     private Color WARNING_COLOR = new Color(241, 196, 15);
     private Color ACCENT_COLOR = new Color(52, 152, 219);
+    private Connection connection;
+    private ProduitDAO produitDAO;
+    private CommandeDAO commandeDAO;
+    private Color DANGER_COLOR = new Color(231, 76, 60);  // ← AJOUTE AVEC LES AUTRES COULEURS
+    private Color BG_PRIMARY = new Color(250, 245, 240);  // Beige crème (fond)
+    private Color BG_CARD = new Color(255, 255, 255);     // Blanc pur (cartes)
+    private Color BORDER_LIGHT = new Color(230, 220, 210); // Taupe clair (bordures)
+    private Utilisateur utilisateurConnecte; 
     
     
     /**
@@ -37,243 +56,620 @@ public class MainMenuFrame extends javax.swing.JFrame {
      */
     public MainMenuFrame() {
         instance = this;
+        try {
+        this.connection = DatabaseConnection.getConnection();
+        CategorieDAO categorieDAO = new CategorieDAO(connection);
+        LigneCommandeDAO ligneCommandeDAO = new LigneCommandeDAO(connection);
+        
+        this.produitDAO = new ProduitDAO(connection, categorieDAO);
+        this.commandeDAO = new CommandeDAO(connection, ligneCommandeDAO);
+        this.utilisateurConnecte = Session.getUtilisateur();
+        
+        logger.info("✅ Dashboard connecté à la BDD");
+    } catch (Exception e) {
+        logger.severe("❌ Erreur connexion dashboard: " + e.getMessage());
+    }
         initComponentsCustom();
         configurerFenetre();
         animerEntree();
         demarrerStatsTempsReel();
     }
     private void initComponentsCustom() {
-        // ============================================
-        // 1. CONFIGURATION FONDAMENTALE
-        // ============================================
-        setTitle("🍽️ Gestion Restaurant - Tableau de Bord");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        getContentPane().setBackground(new Color(250, 250, 250));
-        setLayout(new BorderLayout(0, 0));
-        
-        // ============================================
-        // 2. HEADER PREMIUM AVEC GRADIENT
-        // ============================================
-        JPanel headerPanel = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2d = (Graphics2D) g;
-                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                GradientPaint gradient = new GradientPaint(
-                    0, 0, new Color(44, 62, 80), 
-                    getWidth(), 0, new Color(52, 73, 94)
-                );
-                g2d.setPaint(gradient);
-                g2d.fillRect(0, 0, getWidth(), getHeight());
-            }
-        };
-        headerPanel.setLayout(new BorderLayout());
-        headerPanel.setPreferredSize(new Dimension(getWidth(), 80));
-        headerPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
-        
-        // Logo et titre
-        JPanel logoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 0));
-        logoPanel.setOpaque(false);
-        
-        JLabel logoIcon = new JLabel("🍽️") {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(241, 196, 15, 100));
-                g2.fillOval(0, 0, getWidth(), getHeight());
-                super.paintComponent(g2);
-                g2.dispose();
-            }
-        };
-        logoIcon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 36));
-        logoIcon.setPreferredSize(new Dimension(60, 60));
-        
-        JPanel titlePanel = new JPanel(new GridLayout(2, 1));
-        titlePanel.setOpaque(false);
-        
-        JLabel appTitle = new JLabel("GESTION RESTAURANT");
-        appTitle.setFont(new Font("Segoe UI", Font.BOLD, 22));
-        appTitle.setForeground(Color.WHITE);
-        
-        JLabel appSubtitle = new JLabel("Système complet conforme au sujet POO Java");
-        appSubtitle.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        appSubtitle.setForeground(new Color(200, 200, 200));
-        
-        titlePanel.add(appTitle);
-        titlePanel.add(appSubtitle);
-        
-        logoPanel.add(logoIcon);
-        logoPanel.add(titlePanel);
-        
-        // Barre d'outils supérieure
-        JPanel toolsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        toolsPanel.setOpaque(false);
-        
-        // Notification badge
-        JButton notificationBtn = createToolbarButton("🔔", "3 notifications", SECONDARY_COLOR);
-        notificationBtn.addActionListener(e -> showNotifications());
-        
-        // Utilisateur
-        JButton userBtn = createToolbarButton("👨‍💼", "Administrateur", ACCENT_COLOR);
-        userBtn.addActionListener(e -> showUserMenu());
-        
-        // Date/Heure live
-        JLabel timeLabel = new JLabel();
-        timeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        timeLabel.setForeground(Color.WHITE);
-        updateTimeLabel(timeLabel);
-        
-        // Timer pour l'heure
-        Timer clockTimer = new Timer(1000, e -> updateTimeLabel(timeLabel));
-        clockTimer.start();
-        
-        // Bouton déconnexion
-        JButton logoutBtn = createToolbarButton("🚪", "Déconnexion", new Color(149, 165, 166));
-        logoutBtn.addActionListener(e -> deconnexion());
-        
-        toolsPanel.add(timeLabel);
-        toolsPanel.add(Box.createHorizontalStrut(10));
-        toolsPanel.add(notificationBtn);
-        toolsPanel.add(userBtn);
-        toolsPanel.add(logoutBtn);
-        
-        headerPanel.add(logoPanel, BorderLayout.WEST);
-        headerPanel.add(toolsPanel, BorderLayout.EAST);
-        
-        add(headerPanel, BorderLayout.NORTH);
-        
-        // ============================================
-        // 3. SIDEBAR MODERNE (Navigation verticale)
-        // ============================================
-        JPanel sidebarPanel = new JPanel();
-        sidebarPanel.setLayout(new BoxLayout(sidebarPanel, BoxLayout.Y_AXIS));
-        sidebarPanel.setBackground(PRIMARY_COLOR);
-        sidebarPanel.setPreferredSize(new Dimension(280, getHeight()));
-        sidebarPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 20, 0));
-        
-        // Titre navigation
-        JLabel navTitle = new JLabel("  NAVIGATION PRINCIPALE");
-        navTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        navTitle.setForeground(new Color(189, 195, 199));
-        navTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        navTitle.setBorder(BorderFactory.createEmptyBorder(10, 25, 20, 0));
-        
-        sidebarPanel.add(navTitle);
-        sidebarPanel.add(Box.createVerticalStrut(10));
-        
-        // Boutons de navigation selon le sujet
-        String[][] menuItems = {
-            {"📊", "Tableau de bord", "dashboard"},
-            {"📦", "Produits & Catégories", "produits"},
-            {"📈", "Mouvements de Stock", "stock"},
-            {"🛒", "Commandes Clients", "commandes"},
-            {"💰", "Chiffre d'affaires", "ca"},
-            {"📋", "Statistiques", "stats"},
-            {"⚙️", "Paramètres système", "parametres"},
-            {"❓", "Aide & Support", "aide"}
-        };
-        
-        JButton[] navButtons = new JButton[menuItems.length];
-        
-        for (int i = 0; i < menuItems.length; i++) {
-            navButtons[i] = createNavButton(menuItems[i][0], menuItems[i][1], i == 0);
-            final String action = menuItems[i][2];
-            navButtons[i].addActionListener(e -> {
-                highlightNavButton(navButtons, (JButton) e.getSource());
-                showModule(action);
-            });
-            sidebarPanel.add(navButtons[i]);
-            sidebarPanel.add(Box.createVerticalStrut(5));
+    // ============================================
+    // 1. CONFIGURATION FONDAMENTALE
+    // ============================================
+    setTitle("🍽️ Gestion Restaurant - Tableau de Bord");
+    setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    getContentPane().setBackground(BG_PRIMARY);
+    setLayout(new BorderLayout(0, 0));
+    
+    // ============================================
+    // 2. HEADER PREMIUM AVEC GRADIENT
+    // ============================================
+    JPanel headerPanel = new JPanel() {
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2d = (Graphics2D) g;
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            GradientPaint gradient = new GradientPaint(
+                0, 0, new Color(44, 62, 80), 
+                getWidth(), 0, new Color(52, 73, 94)
+            );
+            g2d.setPaint(gradient);
+            g2d.fillRect(0, 0, getWidth(), getHeight());
         }
-        
-        sidebarPanel.add(Box.createVerticalGlue());
-        
-        // Section des actions rapides
-        JLabel quickActionsTitle = new JLabel("  ACTIONS RAPIDES");
-        quickActionsTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        quickActionsTitle.setForeground(new Color(189, 195, 199));
-        quickActionsTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        quickActionsTitle.setBorder(BorderFactory.createEmptyBorder(20, 25, 10, 0));
-        
-        sidebarPanel.add(quickActionsTitle);
-        
-        String[][] quickActions = {
-            {"➕", "Nouvelle commande"},
-            {"🖨️", "Imprimer facture"},
-            {"📤", "Exporter rapport"},
-            {"🔍", "Recherche avancée"}
-        };
-        
-        for (String[] action : quickActions) {
-            JButton quickBtn = createQuickActionButton(action[0], action[1]);
-            quickBtn.addActionListener(e -> executeQuickAction(action[1]));
-            sidebarPanel.add(quickBtn);
-            sidebarPanel.add(Box.createVerticalStrut(3));
+    };
+    headerPanel.setLayout(new BorderLayout());
+    headerPanel.setPreferredSize(new Dimension(getWidth(), 80));
+    headerPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+    
+    // Logo et titre
+    JPanel logoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 0));
+    logoPanel.setOpaque(false);
+    
+    JLabel logoIcon = new JLabel("🍽️") {
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(new Color(241, 196, 15, 100));
+            g2.fillOval(0, 0, getWidth(), getHeight());
+            super.paintComponent(g2);
+            g2.dispose();
         }
-        
-        add(sidebarPanel, BorderLayout.WEST);
-        
-        // ============================================
-        // 4. CONTENU PRINCIPAL (Zone centrale)
-        // ============================================
-        JPanel mainContentPanel = new JPanel(new BorderLayout());
-        mainContentPanel.setBackground(new Color(255, 255, 255));
-        mainContentPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+    };
+    logoIcon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 36));
+    logoIcon.setPreferredSize(new Dimension(60, 60));
+    
+    JPanel titlePanel = new JPanel(new GridLayout(2, 1));
+    titlePanel.setOpaque(false);
+    
+    JLabel appTitle = new JLabel("GESTION RESTAURANT");
+    appTitle.setFont(new Font("Segoe UI", Font.BOLD, 22));
+    appTitle.setForeground(Color.WHITE);
+    
+    JLabel appSubtitle = new JLabel("Système complet conforme au sujet POO Java");
+    appSubtitle.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+    appSubtitle.setForeground(new Color(200, 200, 200));
+    
+    titlePanel.add(appTitle);
+    titlePanel.add(appSubtitle);
+    
+    logoPanel.add(logoIcon);
+    logoPanel.add(titlePanel);
+    
+    // ============================================
+    // INFOS RESTAURANT DANS LE HEADER
+    // ============================================
+    JPanel restoInfoPanel = new JPanel(new GridLayout(2, 1));
+    restoInfoPanel.setOpaque(false);
+    restoInfoPanel.setBorder(BorderFactory.createEmptyBorder(0, 20, 0, 20));
+    
+    JLabel restoName = new JLabel("RESTAURANT DELICE");
+    restoName.setFont(new Font("Segoe UI", Font.BOLD, 14));
+    restoName.setForeground(Color.WHITE);
+    
+    JLabel restoAddress = new JLabel("12 Rue de la Paix, 75001 Paris • 01 23 45 67 89");
+    restoAddress.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+    restoAddress.setForeground(new Color(220, 220, 220));
+    
+    restoInfoPanel.add(restoName);
+    restoInfoPanel.add(restoAddress);
+    
+    logoPanel.add(restoInfoPanel);
+    
+    // ============================================
+    // BARRE D'OUTILS SUPÉRIEURE
+    // ============================================
+    JPanel toolsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+    toolsPanel.setOpaque(false);
+    
+    // Notification badge
+    // ✅ NOTIFICATION - LABEL CLIQUABLE AVEC BADGE
+    JPanel notificationPanel = new JPanel(new BorderLayout());  // ✅ SIMPLE ET EFFICACE
+    notificationPanel.setOpaque(false);
+    notificationPanel.setPreferredSize(new Dimension(40, 40));
+    notificationPanel.setOpaque(false);
+    notificationPanel.setPreferredSize(new Dimension(40, 40));
 
-// GARDER UNIQUEMENT CETTE LIGNE
-        JPanel dashboardPanel = createDashboardPanel();
-        mainContentPanel.add(dashboardPanel, BorderLayout.CENTER);  // ← DIRECTEMENT AU CENTRE
+    // Icône cloche
+    JLabel notificationIcon = new JLabel("🔔");
+    notificationIcon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 22));
+    notificationIcon.setForeground(Color.WHITE);
+    notificationIcon.setHorizontalAlignment(SwingConstants.CENTER);
+    notificationIcon.setVerticalAlignment(SwingConstants.CENTER);
+    notificationIcon.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    notificationIcon.setToolTipText("Notifications");
 
-// ... garder le reste du code (infoPanel, etc.) ...
-        
-        // ============================================
-        // 5. PANEL D'INFORMATIONS EN BAS
-        // ============================================
-        JPanel infoPanel = new JPanel(new BorderLayout());
-        infoPanel.setBackground(new Color(240, 240, 240));
-        infoPanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(220, 220, 220)),
-            BorderFactory.createEmptyBorder(10, 20, 10, 20)
-        ));
-        infoPanel.setPreferredSize(new Dimension(getWidth(), 60));
-        
-        // Informations système
-        JLabel systemInfo = new JLabel("✅ Base de données connectée • MySQL • ");
-        systemInfo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        systemInfo.setForeground(new Color(85, 85, 85));
-        
-        // Performance indicator
-        JPanel perfPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        perfPanel.setOpaque(false);
-        
-        JLabel perfLabel = new JLabel("Performance: ");
-        perfLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        
-        JProgressBar perfBar = new JProgressBar(0, 100);
-        perfBar.setValue(92);
-        perfBar.setForeground(SUCCESS_COLOR);
-        perfBar.setPreferredSize(new Dimension(100, 20));
-        perfBar.setStringPainted(true);
-        perfBar.setString("92%");
-        
-        JLabel versionLabel = new JLabel("v1.0 • Conforme au sujet POO Java");
-        versionLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        versionLabel.setForeground(new Color(150, 150, 150));
-        
-        perfPanel.add(perfLabel);
-        perfPanel.add(perfBar);
-        perfPanel.add(Box.createHorizontalStrut(20));
-        perfPanel.add(versionLabel);
-        
-        infoPanel.add(systemInfo, BorderLayout.WEST);
-        infoPanel.add(perfPanel, BorderLayout.EAST);
-        
-        mainContentPanel.add(infoPanel, BorderLayout.SOUTH);
-        
-        add(mainContentPanel, BorderLayout.CENTER);
+    // Badge de notification
+    int nbAlertes = 0;
+    try {
+        if (produitDAO != null) {
+            nbAlertes = produitDAO.findStockBelowSeuil().size();
+        }
+    } catch (Exception e) {}
+
+    JLabel notificationBadge = new JLabel(String.valueOf(nbAlertes));
+    notificationBadge.setFont(new Font("Segoe UI", Font.BOLD, 10));
+    notificationBadge.setForeground(Color.WHITE);
+    notificationBadge.setBackground(SECONDARY_COLOR);
+    notificationBadge.setOpaque(true);
+    notificationBadge.setHorizontalAlignment(SwingConstants.CENTER);
+    notificationBadge.setVerticalAlignment(SwingConstants.CENTER);
+    notificationBadge.setPreferredSize(new Dimension(18, 18));
+    notificationBadge.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+    notificationBadge.setVisible(nbAlertes > 0);
+
+    // Arrondir le badge
+    notificationBadge.setUI(new javax.swing.plaf.basic.BasicLabelUI() {
+    @Override
+    public void paint(Graphics g, JComponent c) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setColor(notificationBadge.getBackground());
+        g2.fillOval(0, 0, c.getWidth()-1, c.getHeight()-1);
+        g2.setColor(Color.WHITE);
+        g2.setStroke(new BasicStroke(1));
+        g2.drawOval(0, 0, c.getWidth()-1, c.getHeight()-1);
+        g2.dispose();
+        super.paint(g, c);
     }
+});
+
+// Positionner le badge en haut à droite
+notificationPanel.setLayout(new BorderLayout());
+notificationPanel.add(notificationIcon, BorderLayout.CENTER);
+notificationPanel.add(notificationBadge, BorderLayout.NORTH);
+
+// Action du clic
+notificationIcon.addMouseListener(new MouseAdapter() {
+    @Override
+    public void mouseClicked(MouseEvent e) {
+        showNotifications();
+    }
+    @Override
+    public void mouseEntered(MouseEvent e) {
+        notificationIcon.setForeground(new Color(255, 255, 255, 200));
+    }
+    @Override
+    public void mouseExited(MouseEvent e) {
+        notificationIcon.setForeground(Color.WHITE);
+    }
+});
+
+// Ajouter au toolsPanel
+    toolsPanel.add(notificationPanel);
+    
+    // ✅ UTILISATEUR - DYNAMIQUE SELON CONNEXION
+    // ✅ PROFIL UTILISATEUR - LABEL CLIQUABLE AVEC STICKER
+JPanel profilPanel = new JPanel(new BorderLayout());
+profilPanel.setOpaque(false);
+profilPanel.setPreferredSize(new Dimension(50, 50));
+profilPanel.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+// Icône de profil avec sticker circulaire
+JLabel profilIcon = new JLabel("👤") {
+    @Override
+    protected void paintComponent(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // Fond circulaire avec dégradé
+        GradientPaint gradient;
+        if (utilisateurConnecte != null && utilisateurConnecte.isAdmin()) {
+            gradient = new GradientPaint(0, 0, new Color(52, 152, 219), 
+                                       getWidth(), getHeight(), new Color(41, 128, 185));
+        } else {
+            gradient = new GradientPaint(0, 0, new Color(46, 204, 113), 
+                                       getWidth(), getHeight(), new Color(39, 174, 96));
+        }
+        g2.setPaint(gradient);
+        g2.fillOval(0, 0, getWidth(), getHeight());
+        
+        // Bordure blanche
+        g2.setColor(Color.WHITE);
+        g2.setStroke(new BasicStroke(2f));
+        g2.drawOval(0, 0, getWidth()-1, getHeight()-1);
+        
+        g2.dispose();
+        super.paintComponent(g);
+    }
+};
+profilIcon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 24));
+profilIcon.setForeground(Color.WHITE);
+profilIcon.setHorizontalAlignment(SwingConstants.CENTER);
+profilIcon.setVerticalAlignment(SwingConstants.CENTER);
+profilIcon.setPreferredSize(new Dimension(44, 44));
+
+// Texte du rôle (optionnel)
+JLabel roleLabel = new JLabel();
+if (utilisateurConnecte != null) {
+    roleLabel.setText(utilisateurConnecte.getRole());
+    roleLabel.setFont(new Font("Segoe UI", Font.BOLD, 9));
+    roleLabel.setForeground(utilisateurConnecte.isAdmin() ? new Color(52, 152, 219) : new Color(46, 204, 113));
+} else {
+    roleLabel.setText("INVITÉ");
+    roleLabel.setForeground(Color.GRAY);
+}
+roleLabel.setHorizontalAlignment(SwingConstants.CENTER);
+roleLabel.setVerticalAlignment(SwingConstants.BOTTOM);
+roleLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 2, 0));
+
+profilPanel.add(profilIcon, BorderLayout.CENTER);
+profilPanel.add(roleLabel, BorderLayout.SOUTH);
+
+// Tooltip avec infos utilisateur
+if (utilisateurConnecte != null) {
+    profilPanel.setToolTipText("<html><b>" + utilisateurConnecte.getLogin() + "</b><br>" + 
+                               utilisateurConnecte.getRole() + " connecté</html>");
+} else {
+    profilPanel.setToolTipText("Non connecté");
+}
+
+// Action du clic - OUVRE LE PROFIL UTILISATEUR
+profilPanel.addMouseListener(new MouseAdapter() {
+    @Override
+    public void mouseClicked(MouseEvent e) {
+        if (utilisateurConnecte != null) {
+            new ProfilUtilisateurFrame().setVisible(true);
+        } else {
+            JOptionPane.showMessageDialog(MainMenuFrame.this,
+                "❌ Aucun utilisateur connecté",
+                "Erreur", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+    
+    @Override
+    public void mouseEntered(MouseEvent e) {
+        profilIcon.setForeground(new Color(255, 255, 255, 220));
+    }
+    
+    @Override
+    public void mouseExited(MouseEvent e) {
+        profilIcon.setForeground(Color.WHITE);
+    }
+});
+
+// Ajouter au toolsPanel
+
+    
+    toolsPanel.add(profilPanel);
+    
+    // Date/Heure live
+    JLabel timeLabel = new JLabel();
+    timeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+    timeLabel.setForeground(Color.WHITE);
+    updateTimeLabel(timeLabel);
+    
+    Timer clockTimer = new Timer(1000, e -> updateTimeLabel(timeLabel));
+    clockTimer.start();
+    
+    // Bouton déconnexion
+    // ✅ ICÔNE DE DÉCONNEXION SIMPLE ET ÉLÉGANTE
+JPanel logoutPanel = new JPanel(new BorderLayout());
+logoutPanel.setOpaque(false);
+logoutPanel.setPreferredSize(new Dimension(44, 44));
+logoutPanel.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+JLabel logoutIcon = new JLabel("🚪") {
+    @Override
+    protected void paintComponent(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // Fond circulaire rouge
+        g2.setColor(new Color(231, 76, 60));
+        g2.fillOval(0, 0, getWidth(), getHeight());
+        
+        // Bordure blanche
+        g2.setColor(Color.WHITE);
+        g2.setStroke(new BasicStroke(2f));
+        g2.drawOval(0, 0, getWidth()-1, getHeight()-1);
+        
+        g2.dispose();
+        super.paintComponent(g);
+    }
+};
+logoutIcon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 22));
+logoutIcon.setForeground(Color.WHITE);
+logoutIcon.setHorizontalAlignment(SwingConstants.CENTER);
+logoutIcon.setVerticalAlignment(SwingConstants.CENTER);
+
+logoutPanel.add(logoutIcon, BorderLayout.CENTER);
+logoutPanel.setToolTipText("Déconnexion");
+
+logoutPanel.addMouseListener(new MouseAdapter() {
+    @Override
+    public void mouseClicked(MouseEvent e) {
+        deconnexion();
+    }
+    @Override
+    public void mouseEntered(MouseEvent e) {
+        logoutIcon.setForeground(new Color(255, 255, 255, 220));
+    }
+    @Override
+    public void mouseExited(MouseEvent e) {
+        logoutIcon.setForeground(Color.WHITE);
+    }
+});
+
+toolsPanel.add(logoutPanel);
+    
+    toolsPanel.add(timeLabel);
+    toolsPanel.add(Box.createHorizontalStrut(10));
+    
+    headerPanel.add(logoPanel, BorderLayout.WEST);
+    headerPanel.add(toolsPanel, BorderLayout.EAST);
+    
+    add(headerPanel, BorderLayout.NORTH);
+    
+    // ============================================
+    // 3. SIDEBAR MODERNE (Navigation verticale)
+    // ============================================
+    JPanel sidebarPanel = new JPanel();
+sidebarPanel.setLayout(new BoxLayout(sidebarPanel, BoxLayout.Y_AXIS));
+sidebarPanel.setBackground(PRIMARY_COLOR);
+sidebarPanel.setPreferredSize(new Dimension(280, getHeight()));
+sidebarPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 20, 0));
+
+// Titre navigation
+JLabel navTitle = new JLabel("  NAVIGATION PRINCIPALE");
+navTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
+navTitle.setForeground(new Color(189, 195, 199));
+navTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+navTitle.setBorder(BorderFactory.createEmptyBorder(10, 25, 20, 0));
+
+sidebarPanel.add(navTitle);
+sidebarPanel.add(Box.createVerticalStrut(10));
+
+// ✅ Boutons de navigation simples (sans Aide)
+String[][] menuItems = {
+    {"📊", "Tableau de bord", "dashboard"},
+    {"📦", "Produits & Catégories", "produits"},
+    {"📈", "Mouvements de Stock", "stock"},
+    {"🛒", "Commandes Clients", "commandes"},
+    {"📋", "Statistiques", "stats"},
+    {"⚙️", "Paramètres système", "parametres"}
+};
+
+for (String[] item : menuItems) {
+    JButton btn = createNavButton(item[0], item[1], false);
+    final String action = item[2];
+    btn.addActionListener(e -> showModule(action));
+    sidebarPanel.add(btn);
+    sidebarPanel.add(Box.createVerticalStrut(5));
+}
+
+// ✅ MENU DÉROULANT POUR AIDE & SUPPORT
+sidebarPanel.add(createAideMenu());
+sidebarPanel.add(Box.createVerticalStrut(5));
+
+sidebarPanel.add(Box.createVerticalGlue());
+
+// Section des actions rapides
+JLabel quickActionsTitle = new JLabel("  ACTIONS RAPIDES");
+quickActionsTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
+quickActionsTitle.setForeground(new Color(189, 195, 199));
+quickActionsTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+quickActionsTitle.setBorder(BorderFactory.createEmptyBorder(20, 25, 10, 0));
+
+sidebarPanel.add(quickActionsTitle);
+
+String[][] quickActions = {
+    {"➕", "Nouvelle commande"},
+    {"🖨️", "Imprimer facture"},
+    {"📤", "Exporter rapport"},
+    {"🔍", "Recherche avancée"}
+};
+
+for (String[] action : quickActions) {
+    JButton quickBtn = createQuickActionButton(action[0], action[1]);
+    quickBtn.addActionListener(e -> executeQuickAction(action[1]));
+    sidebarPanel.add(quickBtn);
+    sidebarPanel.add(Box.createVerticalStrut(3));
+}
+
+add(sidebarPanel, BorderLayout.WEST);
+    
+    JButton[] navButtons = new JButton[menuItems.length];
+    
+    for (int i = 0; i < menuItems.length; i++) {
+        navButtons[i] = createNavButton(menuItems[i][0], menuItems[i][1], i == 0);
+        final String action = menuItems[i][2];
+        navButtons[i].addActionListener(e -> {
+            highlightNavButton(navButtons, (JButton) e.getSource());
+            showModule(action);
+        });
+        sidebarPanel.add(navButtons[i]);
+        sidebarPanel.add(Box.createVerticalStrut(5));
+    }
+    
+    sidebarPanel.add(Box.createVerticalGlue());
+    
+    // Section des actions rapides
+    JLabel lblQuickActions = new JLabel("  ACTIONS RAPIDES");
+    quickActionsTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
+    quickActionsTitle.setForeground(new Color(189, 195, 199));
+    quickActionsTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+    quickActionsTitle.setBorder(BorderFactory.createEmptyBorder(20, 25, 10, 0));
+    
+    sidebarPanel.add(quickActionsTitle);
+    
+    String[][] actionsList = {  // ← RENOMMÉ
+    {"➕", "Nouvelle commande"},
+    {"🖨️", "Imprimer facture"},
+    {"📤", "Exporter rapport"},
+    {"🔍", "Recherche avancée"}
+};
+    
+    for (String[] action : quickActions) {
+        JButton quickBtn = createQuickActionButton(action[0], action[1]);
+        quickBtn.addActionListener(e -> executeQuickAction(action[1]));
+        sidebarPanel.add(quickBtn);
+        sidebarPanel.add(Box.createVerticalStrut(3));
+    }
+    
+    add(sidebarPanel, BorderLayout.WEST);
+    
+    // ============================================
+    // 4. CONTENU PRINCIPAL (Zone centrale)
+    // ============================================
+    JPanel mainContentPanel = new JPanel(new BorderLayout());
+    mainContentPanel.setBackground(Color.WHITE);
+    mainContentPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+    
+    // Dashboard
+    JPanel dashboardPanel = createDashboardPanel();
+    mainContentPanel.add(dashboardPanel, BorderLayout.CENTER);
+    
+    // ============================================
+    // 5. PANEL D'INFORMATIONS EN BAS
+    // ============================================
+    JPanel infoPanel = new JPanel(new BorderLayout());
+    infoPanel.setBackground(new Color(240, 240, 240));
+    infoPanel.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(220, 220, 220)),
+        BorderFactory.createEmptyBorder(10, 20, 10, 20)
+    ));
+    infoPanel.setPreferredSize(new Dimension(getWidth(), 60));
+    
+    // Informations système
+    String userInfo = "✅ Base de données connectée • MySQL • ";
+    if (utilisateurConnecte != null) {
+        userInfo += "Utilisateur: " + utilisateurConnecte.getLogin() + " (" + utilisateurConnecte.getRole() + ")";
+    } else {
+        userInfo += "Mode démonstration";
+    }
+    
+    JLabel systemInfo = new JLabel(userInfo);
+    systemInfo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+    systemInfo.setForeground(new Color(85, 85, 85));
+    
+    // Performance indicator
+    JPanel perfPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+    perfPanel.setOpaque(false);
+    
+    JLabel perfLabel = new JLabel("Performance: ");
+    perfLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+    
+    JProgressBar perfBar = new JProgressBar(0, 100);
+    perfBar.setValue(92);
+    perfBar.setForeground(SUCCESS_COLOR);
+    perfBar.setPreferredSize(new Dimension(100, 20));
+    perfBar.setStringPainted(true);
+    perfBar.setString("92%");
+    
+    JLabel versionLabel = new JLabel("v1.0 • Conforme au sujet POO Java");
+    versionLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+    versionLabel.setForeground(new Color(150, 150, 150));
+    
+    perfPanel.add(perfLabel);
+    perfPanel.add(perfBar);
+    perfPanel.add(Box.createHorizontalStrut(20));
+    perfPanel.add(versionLabel);
+    
+    infoPanel.add(systemInfo, BorderLayout.WEST);
+    infoPanel.add(perfPanel, BorderLayout.EAST);
+    
+    mainContentPanel.add(infoPanel, BorderLayout.SOUTH);
+    
+    add(mainContentPanel, BorderLayout.CENTER);
+}
+    
+/**
+ * Crée un menu déroulant pour Aide & Support avec 3 sous-menus
+ */
+private JPanel createAideMenu() {
+    JPanel menuPanel = new JPanel();
+    menuPanel.setLayout(new BoxLayout(menuPanel, BoxLayout.Y_AXIS));
+    menuPanel.setOpaque(false);
+    
+    // Bouton principal "Aide & Support"
+    JButton btnAide = createNavButton("❓", "Aide & Support ▼", false);
+    btnAide.setAlignmentX(Component.LEFT_ALIGNMENT);
+    btnAide.setMaximumSize(new Dimension(280, 50));
+    
+    // Panneau des sous-menus (caché par défaut)
+    JPanel subMenuPanel = new JPanel();
+    subMenuPanel.setLayout(new BoxLayout(subMenuPanel, BoxLayout.Y_AXIS));
+    subMenuPanel.setOpaque(false);
+    subMenuPanel.setBorder(BorderFactory.createEmptyBorder(0, 25, 0, 0));
+    subMenuPanel.setVisible(false);
+    
+    // Sous-menu 1 : Guide d'utilisation
+    JButton btnGuide = createSubMenuButton("📖", "Guide d'utilisation");
+    btnGuide.addActionListener(e -> new AideGuideFrame().setVisible(true));
+    
+    // Sous-menu 2 : Raccourcis clavier
+    JButton btnRaccourcis = createSubMenuButton("⌨️", "Raccourcis clavier");
+    btnRaccourcis.addActionListener(e -> new AideRaccourcisFrame().setVisible(true));
+    
+    // Sous-menu 3 : Contact & Support
+    JButton btnContact = createSubMenuButton("📞", "Contact & Support");
+    btnContact.addActionListener(e -> new AideContactFrame().setVisible(true));
+    
+    subMenuPanel.add(btnGuide);
+    subMenuPanel.add(Box.createVerticalStrut(3));
+    subMenuPanel.add(btnRaccourcis);
+    subMenuPanel.add(Box.createVerticalStrut(3));
+    subMenuPanel.add(btnContact);
+    
+    // Action pour afficher/cacher le sous-menu
+    btnAide.addActionListener(e -> {
+        subMenuPanel.setVisible(!subMenuPanel.isVisible());
+        
+        // Changer la flèche
+        if (subMenuPanel.isVisible()) {
+            btnAide.setText("<html><div style='text-align: left; padding-left: 10px;'>❓  Aide & Support ▲</div></html>");
+        } else {
+            btnAide.setText("<html><div style='text-align: left; padding-left: 10px;'>❓  Aide & Support ▼</div></html>");
+        }
+        
+        // Réorganiser le panel
+        menuPanel.revalidate();
+        menuPanel.repaint();
+    });
+    
+    menuPanel.add(btnAide);
+    menuPanel.add(subMenuPanel);
+    
+    return menuPanel;
+}
+
+    /**
+ * Crée un bouton de sous-menu stylisé
+ */
+private JButton createSubMenuButton(String icon, String text) {
+    JButton button = new JButton(icon + "  " + text) {
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            
+            if (getModel().isRollover()) {
+                g2.setColor(new Color(255, 255, 255, 30));
+                g2.fillRect(0, 0, getWidth(), getHeight());
+            }
+            
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    };
+    
+    button.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+    button.setForeground(new Color(200, 200, 200));
+    button.setHorizontalAlignment(SwingConstants.LEFT);
+    button.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+    button.setContentAreaFilled(false);
+    button.setFocusPainted(false);
+    button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    button.setMaximumSize(new Dimension(250, 36));
+    button.setAlignmentX(Component.LEFT_ALIGNMENT);
+    
+    return button;
+}
+
     /**
      * Creates new form MainMenuFrame
      */
@@ -413,6 +809,15 @@ public class MainMenuFrame extends javax.swing.JFrame {
         
         return button;
     }
+    private void updateNotificationBadge(JLabel badge) {
+    try {
+        int nbAlertes = produitDAO != null ? produitDAO.findStockBelowSeuil().size() : 0;
+        badge.setText(String.valueOf(nbAlertes));
+        badge.setVisible(nbAlertes > 0);
+    } catch (Exception e) {
+        badge.setVisible(false);
+    }
+}
     
     
     private JButton createNavButton(String icon, String text, boolean active) {
@@ -482,129 +887,318 @@ public class MainMenuFrame extends javax.swing.JFrame {
         return button;
     }
         private JPanel createDashboardPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(Color.WHITE);
-        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        
-        // En-tête du dashboard
-        JPanel dashboardHeader = new JPanel(new BorderLayout());
-        dashboardHeader.setOpaque(false);
-        
-        JLabel dashTitle = new JLabel("Tableau de bord");
-        dashTitle.setFont(new Font("Segoe UI", Font.BOLD, 24));
-        dashTitle.setForeground(PRIMARY_COLOR);
-        
-        JLabel dashDate = new JLabel(new SimpleDateFormat("EEEE d MMMM yyyy", Locale.FRENCH).format(new Date()));
-        dashDate.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        dashDate.setForeground(new Color(150, 150, 150));
-        
-        dashboardHeader.add(dashTitle, BorderLayout.WEST);
-        dashboardHeader.add(dashDate, BorderLayout.EAST);
-        
-        panel.add(dashboardHeader, BorderLayout.NORTH);
-        
-        // Cartes de statistiques
-        JPanel statsCardsPanel = new JPanel(new GridLayout(2, 3, 20, 20));
-        statsCardsPanel.setOpaque(false);
-        statsCardsPanel.setBorder(BorderFactory.createEmptyBorder(30, 0, 20, 0));
-        
-        // Cartes selon le sujet
-        String[][] statsData = {
-            {"📦", "Produits en stock", "142", "articles", "#27AE60"},
-            {"💰", "CA aujourd'hui", "2 850 €", "+12% vs hier", "#2ECC71"},
-            {"🛒", "Commandes actives", "8", "en cours", "#3498DB"},
-            {"📊", "Taux occupation", "74%", "Très bon", "#F1C40F"},
-            {"⚠️", "Alertes stock", "3", "produits bas", "#E74C3C"},
-            {"👥", "Clients servis", "42", "aujourd'hui", "#9B59B6"}
-        };
+        // Panel principal avec BoxLayout vertical
+        JPanel contentPanel = new JPanel();
+        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+        contentPanel.setBackground(Color.WHITE);
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-// VERSION SÉCURISÉE
-        for (String[] data : statsData) {
-            Color color;
+        // ===== 1. EN-TÊTE =====
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setOpaque(false);
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
+
+        JLabel titleLabel = new JLabel("Tableau de bord");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 28));
+        titleLabel.setForeground(PRIMARY_COLOR);
+
+        JLabel dateLabel = new JLabel(new SimpleDateFormat("EEEE d MMMM yyyy", Locale.FRENCH).format(new Date()));
+        dateLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        dateLabel.setForeground(new Color(150, 150, 150));
+
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+        headerPanel.add(dateLabel, BorderLayout.EAST);
+        contentPanel.add(headerPanel);
+        contentPanel.add(Box.createVerticalStrut(10));
+
+        // ===== 2. SECTION COMMANDES =====
+        JPanel ordersSection = new JPanel(new BorderLayout());
+        ordersSection.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
+
+        JLabel ordersTitle = new JLabel("🛒 Commandes en cours");
+        ordersTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        ordersTitle.setForeground(PRIMARY_COLOR);
+        ordersTitle.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
+        ordersSection.add(ordersTitle, BorderLayout.NORTH);
+
+        // ✅ GRILLE DYNAMIQUE AVEC NOMBRE VARIABLE DE COLONNES
+        JPanel ordersGrid = new JPanel();
+        ordersGrid.setBackground(Color.WHITE);
+        ordersGrid.setLayout(new GridLayout(0, 3, 15, 15)); // 3 colonnes, lignes illimitées
+
         try {
-            color = Color.decode(data[4]);  // Convertir hexa → Color
+            if (commandeDAO != null) {
+                List<Commande> commandes = commandeDAO.findByEtat("EN_COURS");
+
+                if (commandes.isEmpty()) {
+                    JLabel emptyLabel = new JLabel("   Aucune commande en cours");
+                    emptyLabel.setFont(new Font("Segoe UI", Font.ITALIC, 14));
+                    emptyLabel.setForeground(new Color(150, 150, 150));
+                    ordersGrid.add(emptyLabel);
+                } else {
+                    // ✅ Affiche TOUTES les commandes (pas de limite !)
+                    for (Commande cmd : commandes) {
+                        ordersGrid.add(createCommandeCard(cmd));
+                    }
+                }
+            }
         } catch (Exception e) {
-            color = Color.BLACK;  // Couleur par défaut si erreur
+            e.printStackTrace();
         }
-        }
-        
-        panel.add(statsCardsPanel, BorderLayout.CENTER);
-        
-        // Section inférieure avec commandes et alertes
-        JSplitPane bottomSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        bottomSplitPane.setDividerLocation(500);
-        bottomSplitPane.setDividerSize(2);
-        bottomSplitPane.setBorder(BorderFactory.createEmptyBorder(20, 0, 0, 0));
-        
-        // Commandes en cours
-        JPanel ordersPanel = new JPanel(new BorderLayout());
-        ordersPanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(new Color(220, 220, 220), 1),
-                "🛒 Commandes en cours",
-                TitledBorder.LEFT,
-                TitledBorder.TOP,
-                new Font("Segoe UI", Font.BOLD, 14),
-                PRIMARY_COLOR
-            ),
-            BorderFactory.createEmptyBorder(15, 15, 15, 15)
-        ));
-        
-        String[][] ordersData = {
-            {"Table 5", "Dupont", "85€", "⏳ En préparation"},
-            {"Table 2", "Martin", "120€", "✅ Servie"},
-            {"Table 8", "Leroy", "65€", "⏳ Cuisine"},
-            {"Table 3", "Dubois", "95€", "📋 En attente"}
-        };
-        
-        JPanel ordersList = new JPanel(new GridLayout(ordersData.length, 1, 0, 10));
-        ordersList.setOpaque(false);
-        
-        for (String[] order : ordersData) {
-            ordersList.add(createOrderItem(order[0], order[1], order[2], order[3]));
-        }
-        
-        ordersPanel.add(ordersList, BorderLayout.CENTER);
-        
-        // Alertes stock
-        JPanel alertsPanel = new JPanel(new BorderLayout());
-        alertsPanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(new Color(220, 220, 220), 1),
-                "⚠️ Alertes stock",
-                TitledBorder.LEFT,
-                TitledBorder.TOP,
-                new Font("Segoe UI", Font.BOLD, 14),
-                SECONDARY_COLOR
-            ),
-            BorderFactory.createEmptyBorder(15, 15, 15, 15)
-        ));
-        
-        String[][] alertsData = {
-    {"🍷 Vin rouge", "3 bouteilles", "Seuil bas", "#E74C3C"},
-    {"🐟 Saumon", "2 kg", "À réapprovisionner", "#E74C3C"},
-    {"🍞 Pain baguette", "15 unités", "Stock OK", "#27AE60"},
-    {"🥩 Filet mignon", "5 portions", "Niveau moyen", "#F1C40F"}
-    };
 
-    JPanel alertsList = new JPanel(new GridLayout(alertsData.length, 1, 0, 10));
-    alertsList.setOpaque(false);
+        ordersSection.add(ordersGrid, BorderLayout.CENTER);
+        contentPanel.add(ordersSection);
+        contentPanel.add(Box.createVerticalStrut(10));
 
-// CORRECTION ICI : String[] au lieu de Object[], et conversion avec Color.decode()
-    for (String[] alert : alertsData) {
-    Color color = Color.decode(alert[3]);  // Convertir "#E74C3C" en objet Color
-    alertsList.add(createAlertItem(alert[0], alert[1], alert[2], color));
+        // ===== 3. SECTION ALERTES =====
+        JPanel alertsSection = new JPanel(new BorderLayout());
+        alertsSection.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
+
+        JLabel alertsTitle = new JLabel("⚠️ Alertes stock");
+        alertsTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        alertsTitle.setForeground(SECONDARY_COLOR);
+        alertsTitle.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
+        alertsSection.add(alertsTitle, BorderLayout.NORTH);
+
+        // ✅ GRILLE DYNAMIQUE POUR ALERTES
+        JPanel alertsGrid = new JPanel();
+        alertsGrid.setBackground(Color.WHITE);
+        alertsGrid.setLayout(new GridLayout(0, 2, 15, 15)); // 2 colonnes, lignes illimitées
+
+        try {
+            if (produitDAO != null) {
+                List<Produit> alertes = produitDAO.findStockBelowSeuil();
+
+                if (alertes.isEmpty()) {
+                    JLabel okLabel = new JLabel("✅ Aucun produit en dessous du seuil");
+                    okLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+                    okLabel.setForeground(SUCCESS_COLOR);
+                    alertsGrid.add(okLabel);
+                } else {
+                    // ✅ Affiche TOUTES les alertes
+                    for (Produit p : alertes) {
+                        alertsGrid.add(createAlerteCard(p));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        alertsSection.add(alertsGrid, BorderLayout.CENTER);
+        contentPanel.add(alertsSection);
+
+        // ===== 4. WRAPPER SCROLLABLE =====
+        JScrollPane scrollPane = new JScrollPane(contentPanel);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16); // Vitesse de scroll
+        scrollPane.getViewport().setBackground(Color.WHITE);
+
+        // Panel final avec BorderLayout pour contenir le scrollPane
+        JPanel wrapperPanel = new JPanel(new BorderLayout());
+        wrapperPanel.setBackground(Color.WHITE);
+        wrapperPanel.add(scrollPane, BorderLayout.CENTER);
+
+        return wrapperPanel;
     }
-        
-        alertsPanel.add(alertsList, BorderLayout.CENTER);
-        
-        bottomSplitPane.setLeftComponent(ordersPanel);
-        bottomSplitPane.setRightComponent(alertsPanel);
-        
-        panel.add(bottomSplitPane, BorderLayout.SOUTH);
-        
-        return panel;
+
+// ===== CARTE COMMANDE PROPRE =====
+private JPanel createCommandeCard(Commande cmd) {
+    JPanel card = new JPanel();
+    card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+    card.setBackground(BG_CARD);  // ✅ Blanc pur
+    card.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(BORDER_LIGHT, 1),  // ✅ Bordure taupe
+        BorderFactory.createEmptyBorder(15, 15, 15, 15)
+    ));
+    card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+    card.setBackground(Color.WHITE);
+    card.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(new Color(230, 230, 230), 1),
+        BorderFactory.createEmptyBorder(15, 15, 15, 15)
+    ));
+    
+    // Numéro table (simulé)
+    JLabel tableLabel = new JLabel("Table " + (cmd.getId() % 10 + 1));
+    tableLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+    tableLabel.setForeground(PRIMARY_COLOR);
+    tableLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+    
+    // ID commande
+    JLabel idLabel = new JLabel("Commande #" + cmd.getId());
+    idLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+    idLabel.setForeground(new Color(150, 150, 150));
+    idLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+    
+    // Montant
+    JLabel montantLabel = new JLabel(String.format("%.2f F CFA", cmd.getTotal()));
+    montantLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+    montantLabel.setForeground(SUCCESS_COLOR);
+    montantLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+    montantLabel.setBorder(BorderFactory.createEmptyBorder(10, 0, 5, 0));
+    
+    // Statut avec emoji
+    String etat = cmd.getEtat();
+    String emoji = "⏳";
+    if ("VALIDEE".equals(etat)) emoji = "✅";
+    if ("ANNULEE".equals(etat)) emoji = "❌";
+    
+    JLabel etatLabel = new JLabel(emoji + " " + etat);
+    etatLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+    etatLabel.setForeground(new Color(100, 100, 100));
+    etatLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+    
+    card.add(tableLabel);
+    card.add(Box.createVerticalStrut(3));
+    card.add(idLabel);
+    card.add(Box.createVerticalStrut(10));
+    card.add(montantLabel);
+    card.add(Box.createVerticalStrut(5));
+    card.add(etatLabel);
+    
+    return card;
+}
+
+// ===== CARTE ALERTE PROPRE =====
+private JPanel createAlerteCard(Produit p) {
+    JPanel card = new JPanel();
+    
+    card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+    card.setBackground(Color.WHITE);
+    card.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(new Color(230, 230, 230), 1),
+        BorderFactory.createEmptyBorder(15, 15, 15, 15)
+    ));
+    
+    // Nom du produit
+    JLabel nomLabel = new JLabel(p.getNom());
+    nomLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+    nomLabel.setForeground(PRIMARY_COLOR);
+    nomLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+    
+    // Quantité
+    String unite = "unités";
+    if (p.getCategorie().getLibelle().toLowerCase().contains("boisson")) unite = "unités";
+    else if (p.getCategorie().getLibelle().toLowerCase().contains("plat")) unite = "portions";
+    else if (p.getCategorie().getLibelle().toLowerCase().contains("dessert")) unite = "parts";
+    
+    JLabel quantiteLabel = new JLabel(p.getStockActuel() + " " + unite);
+    quantiteLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+    quantiteLabel.setForeground(new Color(150, 150, 150));
+    quantiteLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+    quantiteLabel.setBorder(BorderFactory.createEmptyBorder(5, 0, 5, 0));
+    
+    // Statut
+    String statut = p.getStockActuel() <= 0 ? "RUPTURE" : "Stock bas";
+    Color couleur = p.getStockActuel() <= 0 ? DANGER_COLOR : WARNING_COLOR;
+    
+    JLabel statutLabel = new JLabel("⚠️ " + statut);
+    statutLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+    statutLabel.setForeground(couleur);
+    statutLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+    
+    card.add(nomLabel);
+    card.add(quantiteLabel);
+    card.add(statutLabel);
+    
+    return card;
+}
+
+// ===== NOUVELLE MÉTHODE : CARTE DE COMMANDE =====
+private JPanel createOrderCard(String table, String client, String montant, String etat) {
+    JPanel card = new JPanel(new BorderLayout(10, 5));
+    card.setBackground(Color.WHITE);
+    card.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(new Color(230, 230, 230), 1),
+        BorderFactory.createEmptyBorder(15, 15, 15, 15)
+    ));
+    
+    // Titre
+    JLabel tableLabel = new JLabel(table);
+    tableLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+    tableLabel.setForeground(PRIMARY_COLOR);
+    
+    // Client
+    JLabel clientLabel = new JLabel(client);
+    clientLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+    clientLabel.setForeground(new Color(150, 150, 150));
+    
+    JPanel topPanel = new JPanel(new BorderLayout());
+    topPanel.setOpaque(false);
+    topPanel.add(tableLabel, BorderLayout.WEST);
+    topPanel.add(clientLabel, BorderLayout.EAST);
+    
+    // Montant
+    JLabel montantLabel = new JLabel(montant);
+    montantLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+    montantLabel.setForeground(SUCCESS_COLOR);
+    
+    // Statut
+    JLabel etatLabel = new JLabel(getStatusEmoji(etat) + " " + etat);
+    etatLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+    etatLabel.setForeground(new Color(100, 100, 100));
+    
+    JPanel bottomPanel = new JPanel(new BorderLayout());
+    bottomPanel.setOpaque(false);
+    bottomPanel.add(montantLabel, BorderLayout.WEST);
+    bottomPanel.add(etatLabel, BorderLayout.EAST);
+    
+    card.add(topPanel, BorderLayout.NORTH);
+    card.add(bottomPanel, BorderLayout.SOUTH);
+    
+    return card;
+}
+
+// ===== NOUVELLE MÉTHODE : CARTE D'ALERTE =====
+private JPanel createAlertCard(String produit, String quantite, String etat, Color color) {
+    JPanel card = new JPanel(new BorderLayout(10, 5));
+    card.setBackground(Color.WHITE);
+    card.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(new Color(230, 230, 230), 1),
+        BorderFactory.createEmptyBorder(15, 15, 15, 15)
+    ));
+    
+    JLabel produitLabel = new JLabel(produit);
+    produitLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+    produitLabel.setForeground(PRIMARY_COLOR);
+    
+    JLabel quantiteLabel = new JLabel(quantite);
+    quantiteLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+    quantiteLabel.setForeground(new Color(150, 150, 150));
+    
+    JLabel etatLabel = new JLabel(etat);
+    etatLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+    etatLabel.setForeground(color);
+    etatLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+    
+    JPanel topPanel = new JPanel(new BorderLayout());
+    topPanel.setOpaque(false);
+    topPanel.add(produitLabel, BorderLayout.WEST);
+    topPanel.add(etatLabel, BorderLayout.EAST);
+    
+    card.add(topPanel, BorderLayout.NORTH);
+    card.add(quantiteLabel, BorderLayout.SOUTH);
+    
+    return card;
+}
+
+// ===== MÉTHODES UTILITAIRES =====
+private String getUnite(String categorie) {
+    if (categorie.toLowerCase().contains("boisson")) return "unités";
+    if (categorie.toLowerCase().contains("plat")) return "portions";
+    if (categorie.toLowerCase().contains("dessert")) return "parts";
+    return "unités";
+}
+
+private String getStatusEmoji(String etat) {
+    switch(etat) {
+        case "EN_COURS": return "⏳";
+        case "VALIDÉE": return "✅";
+        case "ANNULÉE": return "❌";
+        default: return "📋";
     }
+}
+
         
 
     private JPanel createOrderItem(String table, String client, String montant, String status) {
@@ -854,43 +1448,52 @@ private JPanel createAlertItem(String produit, String quantite, String etat, Col
     private void showModule(String module) {
     switch(module) {
         case "produits":
-            // OUVRE TA VRAIE FENÊTRE !
-            new GestionProduitFrame().setVisible(true);
+            if (Session.getUtilisateur() != null) {
+                new GestionProduitFrame().setVisible(true);
+            }
             break;
-            
+
         case "stock":
-            JOptionPane.showMessageDialog(this,
-                "Module Mouvements de Stock\n\nEn développement",
-                "Module Stock", JOptionPane.INFORMATION_MESSAGE);
+            if (Session.isAdmin()) {
+                new GestionStockFrame().setVisible(true);
+            } else {
+                JOptionPane.showMessageDialog(this,
+                    "❌ Accès réservé aux administrateurs",
+                    "Permission refusée", JOptionPane.WARNING_MESSAGE);
+            }
             break;
-            
+
         case "commandes":
+            // ✅ TOUT LE MONDE PEUT PRENDRE DES COMMANDES
             JOptionPane.showMessageDialog(this,
-                "Module Commandes Clients\n\nEn développement",
+                "🛒 Module Commandes Clients\n\nEn développement",
                 "Module Commandes", JOptionPane.INFORMATION_MESSAGE);
             break;
-            
-        case "ca":
+
         case "stats":
-            JOptionPane.showMessageDialog(this,
-                "Module Statistiques\n\nEn développement",
-                "Statistiques", JOptionPane.INFORMATION_MESSAGE);
+            if (Session.isAdmin()) {
+                new StatistiquesFrame().setVisible(true);
+            } else {
+                JOptionPane.showMessageDialog(this,
+                    "❌ Accès réservé aux administrateurs",
+                    "Permission refusée", JOptionPane.WARNING_MESSAGE);
+            }
             break;
-            
+
         case "parametres":
-            JOptionPane.showMessageDialog(this,
-                "⚙️ Paramètres système\n\nEn développement",
-                "Paramètres", JOptionPane.INFORMATION_MESSAGE);
+            // ✅ GESTION DES UTILISATEURS (ADMIN UNIQUEMENT)
+            if (Session.isAdmin()) {
+                new GestionUtilisateursFrame().setVisible(true);
+            } else {
+                JOptionPane.showMessageDialog(this,
+                    "❌ Accès réservé aux administrateurs",
+                    "Permission refusée", JOptionPane.WARNING_MESSAGE);
+            }
             break;
-            
-        case "aide":
-            JOptionPane.showMessageDialog(this,
-                "🍽️ GESTION RESTAURANT v1.0\n\n" +
-                "Développé avec Java Swing\n" +
-                "Conforme au sujet POO Java",
-                "À propos", JOptionPane.INFORMATION_MESSAGE);
-            break;
-            
+
+        // ❌ ON SUPPRIME LE CASE "aide" CAR ON UTILISE DES SOUS-MENUS
+        // Les actions des sous-menus sont gérées directement dans createAideMenu()
+
         default:
             // Dashboard - rien à faire
             break;
@@ -924,11 +1527,13 @@ private JPanel createAlertItem(String produit, String quantite, String etat, Col
     // Créer un popup personnalisé au lieu de JOptionPane
     JDialog notificationDialog = new JDialog(this, "🔔 Notifications", true);
     notificationDialog.setLayout(new BorderLayout());
-    notificationDialog.setSize(400, 300);
+    notificationDialog.setSize(500, 400);
+    notificationDialog.setMinimumSize(new Dimension(400, 300));
     notificationDialog.setLocationRelativeTo(this);
     notificationDialog.getContentPane().setBackground(new Color(250, 250, 250));
+    notificationDialog.setResizable(true);
     
-    // En-tête
+    // En-tête avec bouton plein écran
     JPanel headerPanel = new JPanel(new BorderLayout());
     headerPanel.setBackground(new Color(44, 62, 80));
     headerPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
@@ -937,12 +1542,48 @@ private JPanel createAlertItem(String produit, String quantite, String etat, Col
     titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
     titleLabel.setForeground(Color.WHITE);
     
+    // ✅ BOUTON PLEIN ÉCRAN
+    JButton fullscreenBtn = new JButton("🗖");
+    fullscreenBtn.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+    fullscreenBtn.setForeground(Color.WHITE);
+    fullscreenBtn.setBackground(new Color(60, 60, 60));
+    fullscreenBtn.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+    fullscreenBtn.setFocusPainted(false);
+    fullscreenBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    fullscreenBtn.setToolTipText("Plein écran");
+    fullscreenBtn.addActionListener(ev -> {
+        // Basculer en plein écran
+        GraphicsEnvironment env = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        GraphicsDevice device = env.getDefaultScreenDevice();
+        
+        if (device.isFullScreenSupported()) {
+            notificationDialog.dispose(); // Nécessaire pour changer le mode
+            notificationDialog.setUndecorated(!notificationDialog.isUndecorated());
+            
+            if (notificationDialog.isUndecorated()) {
+                device.setFullScreenWindow(notificationDialog);
+            } else {
+                device.setFullScreenWindow(null);
+                notificationDialog.setSize(500, 400);
+                notificationDialog.setLocationRelativeTo(notificationDialog.getParent());
+            }
+            
+            notificationDialog.setVisible(true);
+        }
+    });
+    
+    JPanel countPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+    countPanel.setOpaque(false);
+    
     JLabel countLabel = new JLabel("3 non lues");
     countLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
     countLabel.setForeground(new Color(200, 200, 200));
     
+    countPanel.add(fullscreenBtn);
+    countPanel.add(countLabel);
+    
     headerPanel.add(titleLabel, BorderLayout.WEST);
-    headerPanel.add(countLabel, BorderLayout.EAST);
+    headerPanel.add(countPanel, BorderLayout.EAST);
     
     // Liste des notifications
     JPanel notificationsPanel = new JPanel();
@@ -952,7 +1593,7 @@ private JPanel createAlertItem(String produit, String quantite, String etat, Col
     
     String[][] notifications = {
         {"🔴", "URGENT", "Stock bas - Vin rouge", "Il reste seulement 3 bouteilles de vin rouge", "Il y a 5 min"},
-        {"🟢", "INFO", "Commande validée", "Table 2 - Commande de 120€ validée", "Il y a 15 min"},
+        {"🟢", "INFO", "Commande validée", "Table 2 - Commande de 120F CFA validée", "Il y a 15 min"},
         {"🔵", "SYSTÈME", "Sauvegarde", "Sauvegarde automatique effectuée", "Il y a 30 min"}
     };
     
@@ -993,7 +1634,6 @@ private JPanel createAlertItem(String produit, String quantite, String etat, Col
     
     notificationDialog.setVisible(true);
 }
-
 private JPanel createNotificationItem(String emoji, String type, String title, String message, String time) {
     JPanel item = new JPanel(new BorderLayout(15, 0));
     item.setBackground(Color.WHITE);
@@ -1140,169 +1780,23 @@ private JPanel createNotificationItem(String emoji, String type, String title, S
     
     
     private void deconnexion() {
-    // Créer une boîte de dialogue personnalisée
-    JDialog logoutDialog = new JDialog(this, "🚪 Déconnexion", true);
-    logoutDialog.setLayout(new BorderLayout());
-    logoutDialog.setSize(400, 250);
-    logoutDialog.setLocationRelativeTo(this);
-    logoutDialog.getContentPane().setBackground(new Color(250, 250, 250));
-    logoutDialog.setResizable(false);
+    // Créer une boîte de dialogue simple
+    int choix = JOptionPane.showConfirmDialog(this,
+        "Voulez-vous vraiment vous déconnecter ?",
+        "Confirmation de déconnexion",
+        JOptionPane.YES_NO_OPTION,
+        JOptionPane.QUESTION_MESSAGE);
     
-    // En-tête
-    JPanel headerPanel = new JPanel(new BorderLayout());
-    headerPanel.setBackground(new Color(44, 62, 80));
-    headerPanel.setBorder(BorderFactory.createEmptyBorder(20, 25, 20, 25));
-    
-    JLabel titleLabel = new JLabel("🚪 Déconnexion");
-    titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
-    titleLabel.setForeground(Color.WHITE);
-    
-    JLabel subtitleLabel = new JLabel("Confirmation requise");
-    subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-    subtitleLabel.setForeground(new Color(200, 200, 200));
-    
-    JPanel titlePanel = new JPanel(new GridLayout(2, 1, 0, 5));
-    titlePanel.setOpaque(false);
-    titlePanel.add(titleLabel);
-    titlePanel.add(subtitleLabel);
-    
-    headerPanel.add(titlePanel, BorderLayout.WEST);
-    
-    // Icône d'avertissement
-    JLabel warningIcon = new JLabel("⚠️") {
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            
-            g2.setColor(new Color(241, 196, 15, 30));
-            int size = Math.min(getWidth(), getHeight());
-            g2.fillOval(0, 0, size, size);
-            
-            g2.dispose();
-            super.paintComponent(g);
-        }
-    };
-    warningIcon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 28));
-    warningIcon.setHorizontalAlignment(SwingConstants.CENTER);
-    warningIcon.setPreferredSize(new Dimension(60, 60));
-    
-    headerPanel.add(warningIcon, BorderLayout.EAST);
-    
-    // Contenu du message
-    JPanel messagePanel = new JPanel(new BorderLayout());
-    messagePanel.setBackground(Color.WHITE);
-    messagePanel.setBorder(BorderFactory.createEmptyBorder(25, 30, 25, 30));
-    
-    JLabel messageLabel = new JLabel("<html><div style='text-align: center; width: 320px;'>"
-        + "<b>Êtes-vous sûr de vouloir vous déconnecter ?</b><br><br>"
-        + "Toutes les données non sauvegardées seront perdues.<br>"
-        + "Vous devrez vous reconnecter pour accéder au système."
-        + "</div></html>");
-    messageLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-    messageLabel.setForeground(new Color(80, 80, 80));
-    messageLabel.setHorizontalAlignment(SwingConstants.CENTER);
-    
-    messagePanel.add(messageLabel, BorderLayout.CENTER);
-    
-    // Boutons
-    JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 0));
-    buttonPanel.setBackground(Color.WHITE);
-    buttonPanel.setBorder(BorderFactory.createEmptyBorder(0, 20, 20, 20));
-    
-    // Bouton Annuler
-    JButton cancelButton = new JButton("Annuler") {
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            
-            // Fond gris
-            if (getModel().isRollover()) {
-                g2.setColor(new Color(200, 200, 200));
-            } else {
-                g2.setColor(new Color(220, 220, 220));
-            }
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
-            
-            g2.dispose();
-            super.paintComponent(g);
-        }
-    };
-    
-    cancelButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
-    cancelButton.setForeground(new Color(100, 100, 100));
-    cancelButton.setBorder(BorderFactory.createEmptyBorder(12, 30, 12, 30));
-    cancelButton.setContentAreaFilled(false);
-    cancelButton.setFocusPainted(false);
-    cancelButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-    cancelButton.addActionListener(e -> logoutDialog.dispose());
-    
-    // Bouton Déconnexion
-    JButton logoutButton = new JButton("Se déconnecter") {
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            
-            // Fond rouge avec dégradé
-            GradientPaint gradient;
-            if (getModel().isRollover()) {
-                gradient = new GradientPaint(
-                    0, 0, new Color(231, 76, 60).brighter(),
-                    getWidth(), getHeight(), new Color(192, 57, 43).brighter()
-                );
-            } else {
-                gradient = new GradientPaint(
-                    0, 0, new Color(231, 76, 60),
-                    getWidth(), getHeight(), new Color(192, 57, 43)
-                );
-            }
-            g2.setPaint(gradient);
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
-            
-            g2.dispose();
-            super.paintComponent(g);
-        }
-    };
-    
-    logoutButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
-    logoutButton.setForeground(Color.WHITE);
-    logoutButton.setBorder(BorderFactory.createEmptyBorder(12, 30, 12, 30));
-    logoutButton.setContentAreaFilled(false);
-    logoutButton.setFocusPainted(false);
-    logoutButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-    logoutButton.addActionListener(e -> {
-        logoutDialog.dispose();
-        performLogout();
-    });
-    
-    buttonPanel.add(cancelButton);
-    buttonPanel.add(logoutButton);
-    
-    // Pied de page avec info
-    JPanel footerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-    footerPanel.setBackground(new Color(245, 245, 245));
-    footerPanel.setBorder(BorderFactory.createCompoundBorder(
-        BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(230, 230, 230)),
-        BorderFactory.createEmptyBorder(10, 20, 10, 20)
-    ));
-    
-    JLabel footerLabel = new JLabel("🛡️ Session sécurisée • " + 
-        new java.text.SimpleDateFormat("HH:mm").format(new java.util.Date()));
-    footerLabel.setFont(new Font("Segoe UI", Font.PLAIN, 10));
-    footerLabel.setForeground(new Color(150, 150, 150));
-    
-    footerPanel.add(footerLabel);
-    
-    // Assembler la boîte de dialogue
-    logoutDialog.add(headerPanel, BorderLayout.NORTH);
-    logoutDialog.add(messagePanel, BorderLayout.CENTER);
-    logoutDialog.add(buttonPanel, BorderLayout.SOUTH);
-    logoutDialog.add(footerPanel, BorderLayout.PAGE_END);
-    
-    // Afficher la boîte de dialogue
-    logoutDialog.setVisible(true);
+    if (choix == JOptionPane.YES_OPTION) {
+        // ✅ VIDER LA SESSION
+        Session.clear();
+        
+        // ✅ FERMER LA FENÊTRE PRINCIPALE
+        dispose();
+        
+        // ✅ OUVRIR LOGINFRAME
+        new com.gesrestaurant.views.auth.LoginFrame().setVisible(true);
+    }
 }
 
 private void performLogout() {

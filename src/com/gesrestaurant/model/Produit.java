@@ -85,6 +85,15 @@ public class Produit {
     public void setSeuilAlerte(int seuilAlerte) {
         this.seuilAlerte = seuilAlerte;
     }
+    public String getStatut() {
+    if (stockActuel <= 0) {
+        return "🔴 Rupture";
+    } else if (stockActuel <= seuilAlerte) {
+        return "⚠️ Stock bas";
+    } else {
+        return "✅ OK";
+    }
+}
     
     // toString
     @Override
