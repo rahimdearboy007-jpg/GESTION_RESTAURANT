@@ -33,6 +33,19 @@ public class LigneCommande {
         this.montantLigne = quantite * prixUnitaire;
     }
     
+    // Ajoute cette méthode pour setCommandeId
+    public void setCommandeId(int commandeId) {
+        if (this.commande == null) {
+            this.commande = new Commande();
+        }
+        this.commande.setId(commandeId);
+    }
+
+    // Ajoute cette méthode si tu veux pouvoir setter manuellement (optionnel)
+    public void setMontantLigne(double montantLigne) {
+        this.montantLigne = montantLigne;
+    }
+    
     // Getters et Setters
     public int getId() {
         return id;

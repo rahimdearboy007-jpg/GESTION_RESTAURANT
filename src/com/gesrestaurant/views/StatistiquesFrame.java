@@ -157,6 +157,54 @@ public class StatistiquesFrame extends javax.swing.JFrame {
         return header;
     }
     
+    private JPanel createStatCard(String title, String valueKey, Color color) {
+    JPanel card = new JPanel(new BorderLayout());
+    card.setBackground(BG_CARD);
+    card.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(BORDER_LIGHT, 1),
+        BorderFactory.createEmptyBorder(15, 15, 15, 15)
+    ));
+    
+    JLabel titleLabel = new JLabel(title);
+    titleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+    titleLabel.setForeground(new Color(100, 100, 100));
+    
+    JLabel valueLabel;
+    switch(valueKey) {
+        case "lblCAJour":
+            if (lblCAJour == null) {
+                lblCAJour = new JLabel("0 F CFA");
+            }
+            valueLabel = lblCAJour;
+            break;
+        case "lblCASemaine":
+            if (lblCASemaine == null) {
+                lblCASemaine = new JLabel("0 F CFA");
+            }
+            valueLabel = lblCASemaine;
+            break;
+        case "lblCAMois":
+            if (lblCAMois == null) {
+                lblCAMois = new JLabel("0 F CFA");
+            }
+            valueLabel = lblCAMois;
+            break;
+        default:
+            if (lblEvolution == null) {
+                lblEvolution = new JLabel("0%");
+            }
+            valueLabel = lblEvolution;
+    }
+    
+    valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
+    valueLabel.setForeground(color);
+    
+    card.add(titleLabel, BorderLayout.NORTH);
+    card.add(valueLabel, BorderLayout.CENTER);
+    
+    return card;
+}
+    
         private JPanel createMainPanel() {
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBackground(BG_PRIMARY);
@@ -240,106 +288,130 @@ public class StatistiquesFrame extends javax.swing.JFrame {
         
         panel.add(cardsPanel, BorderLayout.NORTH);
         
-        // ===== GRAPHIQUE SIMULÉ =====
+        // ===== GRAPHIQUE AVEC DONNÉES RÉELLES =====
         JPanel graphPanel = new JPanel(new BorderLayout());
         graphPanel.setBackground(BG_CARD);
         graphPanel.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(BORDER_LIGHT, 1),
             BorderFactory.createEmptyBorder(20, 20, 20, 20)
         ));
-        
-        JLabel graphTitle = new JLabel("📊 Évolution du chiffre d'affaires");
+
+        JLabel graphTitle = new JLabel("📊 Évolution du chiffre d'affaires (7 derniers jours)");
         graphTitle.setFont(new Font("Segoe UI", Font.BOLD, 16));
         graphTitle.setForeground(PRIMARY_COLOR);
         graphPanel.add(graphTitle, BorderLayout.NORTH);
-        
-        // Graphique simplifié (barres)
+
+        // Graphique avec données réelles
         JPanel barChart = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
                 Graphics2D g2 = (Graphics2D) g;
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                
+
+                // Récupérer les données réelles
+                Map<String, Double> ca7Jours = new LinkedHashMap<>();
+                double maxCA = 0;
+
+                if (commandeDAO != null) {
+                    ca7Jours = commandeDAO.getCA7Jours();
+                    // Calculer le max pour l'échelle
+                    for (Double val : ca7Jours.values()) {
+                        if (val > maxCA) maxCA = val;
+                    }
+                }
+        
+                // Si pas de données, utiliser des valeurs par défaut
+                if (ca7Jours.isEmpty()) {
+                    ca7Jours.put("Lundi", 12500.0);
+                    ca7Jours.put("Mardi", 18200.0);
+                    ca7Jours.put("Mercredi", 15800.0);
+                    ca7Jours.put("Jeudi", 22100.0);
+                    ca7Jours.put("Vendredi", 25800.0);
+                    ca7Jours.put("Samedi", 31500.0);
+                    ca7Jours.put("Dimanche", 19800.0);
+                    maxCA = 31500.0;
+                }
+        
                 int width = getWidth();
                 int height = getHeight();
-                int barWidth = (width - 100) / 7;
-                int[] values = {75, 82, 68, 91, 88, 95, 78}; // Valeurs simulées
-                
-                for (int i = 0; i < 7; i++) {
-                    int x = 50 + i * (barWidth + 10);
-                    int barHeight = (values[i] * (height - 100)) / 100;
-                    int y = height - 50 - barHeight;
-                    
-                    // Dégradé pour chaque barre
+                int margin = 60;
+        
+                // ===== DESSINER LES AXES =====
+                g2.setColor(Color.BLACK);
+                g2.setStroke(new BasicStroke(2));
+                g2.drawLine(margin, margin, margin, height - margin);
+                g2.drawLine(margin, height - margin, width - margin, height - margin);
+        
+                // ===== ÉCHELLE DE L'AXE Y =====
+                g2.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                int nbGraduations = 5;
+        
+                for (int i = 0; i <= nbGraduations; i++) {
+                    int y = height - margin - (i * (height - 2 * margin) / nbGraduations);
+                    double valeur = (maxCA * i) / nbGraduations;
+            
+                    g2.drawLine(margin - 5, y, margin, y);
+                    g2.drawString(String.format("%,d F", (int)valeur), margin - 50, y + 4);
+                }
+        
+                // ===== DESSINER LES BARRES =====
+                List<String> jours = new ArrayList<>(ca7Jours.keySet());
+                int barWidth = (width - 2 * margin - 40) / Math.max(1, jours.size());
+
+                for (int i = 0; i < jours.size(); i++) {
+                    String jour = jours.get(i);
+                    double ca = ca7Jours.get(jour);
+                    int x = margin + 20 + i * (barWidth + 5);
+
+                    int barHeight = (int) ((ca * (height - 2 * margin)) / maxCA);
+                    int y = height - margin - barHeight;
+
+                    // Dégradé
                     GradientPaint gradient = new GradientPaint(
                         x, y, ACCENT_COLOR,
                         x + barWidth, y + barHeight, new Color(52, 152, 219, 150)
                     );
                     g2.setPaint(gradient);
                     g2.fillRect(x, y, barWidth, barHeight);
-                    
+
                     // Bordure
                     g2.setColor(PRIMARY_COLOR);
+                    g2.setStroke(new BasicStroke(1));
                     g2.drawRect(x, y, barWidth, barHeight);
-                    
-                    // Libellés des jours
-                    String[] jours = {"L", "M", "M", "J", "V", "S", "D"};
+
+                    // Valeur au-dessus
+                    g2.setColor(PRIMARY_COLOR);
+                    g2.setFont(new Font("Segoe UI", Font.BOLD, 10));
+                    g2.drawString(String.format("%,d F", (int)ca), x, y - 5);
+
+                    // Jour abrégé
+                    String jourAbrege = jour.substring(0, 3);
                     g2.setColor(Color.BLACK);
-                    g2.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-                    g2.drawString(jours[i], x + barWidth/2 - 3, height - 30);
+                    g2.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                    g2.drawString(jourAbrege, x + barWidth/2 - 10, height - margin + 15);
                 }
+
+                // Titres des axes
+                g2.setColor(PRIMARY_COLOR);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+                g2.drawString("Chiffre d'affaires (F CFA)", 10, margin - 20);
+                g2.drawString("Jours", width/2 - 30, height - 15);
             }
         };
-        barChart.setPreferredSize(new Dimension(600, 250));
+        
+        barChart.setPreferredSize(new Dimension(600, 300));
         barChart.setBackground(BG_CARD);
         graphPanel.add(barChart, BorderLayout.CENTER);
         
+        // ✅ AJOUTER LE GRAPHIQUE AU PANEL PRINCIPAL
         panel.add(graphPanel, BorderLayout.CENTER);
         
         return panel;
-    }
-        
-        private JPanel createStatCard(String title, String valueKey, Color color) {
-        JPanel card = new JPanel(new BorderLayout());
-        card.setBackground(BG_CARD);
-        card.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(BORDER_LIGHT, 1),
-            BorderFactory.createEmptyBorder(15, 15, 15, 15)
-        ));
-        
-        JLabel titleLabel = new JLabel(title);
-        titleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        titleLabel.setForeground(new Color(100, 100, 100));
-        
-        JLabel valueLabel;
-        switch(valueKey) {
-            case "lblCAJour":
-                lblCAJour = new JLabel("0 F CFA");
-                valueLabel = lblCAJour;
-                break;
-            case "lblCASemaine":
-                lblCASemaine = new JLabel("0 F CFA");
-                valueLabel = lblCASemaine;
-                break;
-            case "lblCAMois":
-                lblCAMois = new JLabel("0 F CFA");
-                valueLabel = lblCAMois;
-                break;
-            default:
-                lblEvolution = new JLabel("0%");
-                valueLabel = lblEvolution;
-        }
-        
-        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
-        valueLabel.setForeground(color);
-        
-        card.add(titleLabel, BorderLayout.NORTH);
-        card.add(valueLabel, BorderLayout.CENTER);
-        
-        return card;
-    }
-        
+    }  // ← FIN DE LA MÉTHODE createPanelCA() ICI !
+     
+    
+            
         private JPanel createPanelTopProduits() {
         JPanel panel = new JPanel(new BorderLayout(0, 20));
         panel.setBackground(BG_PRIMARY);
@@ -524,50 +596,62 @@ public class StatistiquesFrame extends javax.swing.JFrame {
             lblCAMois.setText("32 500 F CFA");
             lblEvolution.setText("+12.5%");
             return;
-    }
-        
-    try {
-            // Simulation - À remplacer par des vraies requêtes
-            double caJour = 1250.50;
-            double caSemaine = 8450.75;
-            double caMois = 32500.00;
-            double evolution = 12.5;
-            
-            lblCAJour.setText(String.format("%,.0f F CFA", caJour));
-            lblCASemaine.setText(String.format("%,.0f F CFA", caSemaine));
-            lblCAMois.setText(String.format("%,.0f F CFA", caMois));
-            lblEvolution.setText(String.format("+%.1f%%", evolution));
-            
+        }
+
+        try {
+            double caJour = commandeDAO.getCAJour();
+            double caSemaine = commandeDAO.getCASemaine();
+            double caMois = commandeDAO.getCAMois();
+            double caMoisPrecedent = commandeDAO.getCAMoisPrecedent();
+
+            // ✅ CALCUL RÉEL DE L'ÉVOLUTION
+            double evolution = 0;
+            if (caMoisPrecedent > 0) {
+                evolution = ((caMois - caMoisPrecedent) / caMoisPrecedent) * 100;
+            }
+
+            lblCAJour.setText(String.format("%,d F CFA", (int)caJour));
+            lblCASemaine.setText(String.format("%,d F CFA", (int)caSemaine));
+            lblCAMois.setText(String.format("%,d F CFA", (int)caMois));
+
+            if (evolution >= 0) {
+                lblEvolution.setText(String.format("+%.1f%%", evolution));
+                lblEvolution.setForeground(SUCCESS_COLOR);
+            } else {
+                lblEvolution.setText(String.format("%.1f%%", evolution));
+                lblEvolution.setForeground(DANGER_COLOR);
+            }
+
         } catch (Exception e) {
             logger.severe("Erreur chargement CA: " + e.getMessage());
-    }
-    
+        }
     }
     
         private void chargerTopProduits() {
         if (ligneCommandeDAO == null) {
             // Mode démo
-            Object[][] data = {
-                {1, "Pizza Margherita", "Plats", 42, "525.00 F CFA"},
-                {2, "Coca-Cola", "Boissons", 38, "133.00 F CFA"},
-                {3, "Tiramisu", "Desserts", 25, "162.50 F CFA"},
-                {4, "Salade César", "Entrées", 22, "176.00 F CFA"},
-                {5, "Burger Classic", "Plats", 20, "200.00 F CFA"}
-            };
-            
-            tableModelTop.setRowCount(0);
-            for (Object[] row : data) {
-                tableModelTop.addRow(row);
-            }
+            chargerTopProduitsDemo();
             return;
         }
-        
+
         try {
-            // Simulation - À remplacer par des vraies requêtes
-            chargerTopProduitsDemo();
-            
+            // ✅ VRAIES DONNÉES DE LA BDD
+            List<Object[]> top = ligneCommandeDAO.getTopProduits(10); // Top 10
+
+            tableModelTop.setRowCount(0);
+            for (Object[] row : top) {
+                tableModelTop.addRow(new Object[]{
+                    row[0],  // Rang
+                    row[1],  // Produit
+                    row[2],  // Catégorie
+                    row[3],  // Quantité
+                    String.format("%,d F CFA", (int) row[4])
+                });
+            }
+
         } catch (Exception e) {
             logger.severe("Erreur chargement top produits: " + e.getMessage());
+            chargerTopProduitsDemo(); // Fallback
         }
     }
         

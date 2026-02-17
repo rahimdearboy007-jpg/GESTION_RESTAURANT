@@ -136,20 +136,10 @@ public class GestionProduitFrame extends javax.swing.JFrame {
         JButton btnRechercher = createToolButton("🔍", "Rechercher", "Ctrl+F", new Color(100, 100, 100) );
         btnRechercher.addActionListener(e -> rechercherProduits());
 
-        JButton btnExporter = createToolButton("📤", "Exporter", "Ctrl+E", new Color(100, 100, 100));
-        btnExporter.addActionListener(e -> 
-        JOptionPane.showMessageDialog(this, "Export à venir...")
-        );
-
-        JButton btnImprimer = createToolButton("🖨️", "Imprimer", "Ctrl+P", new Color(100, 100, 100));
-        btnImprimer.addActionListener(e -> 
-        JOptionPane.showMessageDialog(this, "Impression à venir...")
-        );
-
+        
         // ✅ Ajout des boutons au panel
         toolBarPanel.add(btnRechercher);
-        toolBarPanel.add(btnExporter);
-        toolBarPanel.add(btnImprimer);
+        
         
         
         add(toolBarPanel, BorderLayout.NORTH);

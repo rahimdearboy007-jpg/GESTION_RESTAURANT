@@ -189,4 +189,36 @@ public class LigneCommandeDAO implements IDAO<LigneCommande> {
         }
         return 0.0;
     }
+    
+    public List<Object[]> getTopProduits(int limite) {
+        List<Object[]> top = new ArrayList<>();
+        String sql = "SELECT p.nom, c.libelle, SUM(lc.quantite) as total_qte, SUM(lc.montant_ligne) as total_ca " +
+                     "FROM lignecommande lc " +
+                     "JOIN produit p ON lc.produit_id = p.id " +
+                     "JOIN commande cmd ON lc.commande_id = cmd.id " +
+                     "JOIN categorie c ON p.categorie_id = c.id " +
+                     "WHERE cmd.etat = 'VALIDÉE' " +
+                     "GROUP BY p.id " +
+                     "ORDER BY total_qte DESC " +
+                     "LIMIT ?";
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, limite);
+            ResultSet rs = stmt.executeQuery();
+
+            int rang = 1;
+            while (rs.next()) {
+                top.add(new Object[]{
+                    rang++,
+                    rs.getString("nom"),
+                    rs.getString("libelle"),
+                    rs.getInt("total_qte"),
+                    rs.getDouble("total_ca")
+                });
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return top;
+    }
 }

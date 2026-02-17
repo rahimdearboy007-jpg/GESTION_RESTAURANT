@@ -15,14 +15,11 @@ import java.text.SimpleDateFormat;
 import com.gesrestaurant.util.DatabaseConnection;
 import com.gesrestaurant.model.*;
 import com.gesrestaurant.dao.*;
+import com.gesrestaurant.views.*;
 import java.sql.Connection;
 import com.gesrestaurant.model.Commande;
 import java.util.List;
-import com.gesrestaurant.views.GestionStockFrame;
 import com.gesrestaurant.util.Session;
-import com.gesrestaurant.views.AideGuideFrame;
-import com.gesrestaurant.views.AideRaccourcisFrame;
-import com.gesrestaurant.views.AideContactFrame;
 
 
 /**
@@ -73,6 +70,7 @@ public class MainMenuFrame extends javax.swing.JFrame {
         configurerFenetre();
         animerEntree();
         demarrerStatsTempsReel();
+        configurerRaccourcisClavier(); 
     }
     private void initComponentsCustom() {
     // ============================================
@@ -407,10 +405,14 @@ toolsPanel.add(logoutPanel);
     // ============================================
     // 3. SIDEBAR MODERNE (Navigation verticale)
     // ============================================
-    JPanel sidebarPanel = new JPanel();
+    // ============================================
+// 3. SIDEBAR MODERNE (Navigation verticale)
+// ============================================
+JPanel sidebarPanel = new JPanel();
 sidebarPanel.setLayout(new BoxLayout(sidebarPanel, BoxLayout.Y_AXIS));
 sidebarPanel.setBackground(PRIMARY_COLOR);
-sidebarPanel.setPreferredSize(new Dimension(280, getHeight()));
+// ✅ NE PAS FIXER DE PREFERRED SIZE ICI
+// sidebarPanel.setPreferredSize(new Dimension(280, getHeight())); ← À SUPPRIMER
 sidebarPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 20, 0));
 
 // Titre navigation
@@ -423,7 +425,7 @@ navTitle.setBorder(BorderFactory.createEmptyBorder(10, 25, 20, 0));
 sidebarPanel.add(navTitle);
 sidebarPanel.add(Box.createVerticalStrut(10));
 
-// ✅ Boutons de navigation simples (sans Aide)
+// Boutons de navigation
 String[][] menuItems = {
     {"📊", "Tableau de bord", "dashboard"},
     {"📦", "Produits & Catégories", "produits"},
@@ -441,37 +443,48 @@ for (String[] item : menuItems) {
     sidebarPanel.add(Box.createVerticalStrut(5));
 }
 
-// ✅ MENU DÉROULANT POUR AIDE & SUPPORT
-sidebarPanel.add(createAideMenu());
-sidebarPanel.add(Box.createVerticalStrut(5));
+    // Bouton Aide & Support
+    // Bouton Aide & Support
+    JButton btnAide = createNavButton("❓", "Aide & Support", false);
+    btnAide.addActionListener(e -> showModule("aide"));  // ← AJOUTE CETTE LIGNE !
+    sidebarPanel.add(btnAide);
+    sidebarPanel.add(Box.createVerticalStrut(5));
 
-sidebarPanel.add(Box.createVerticalGlue());
+    // Section des actions rapides
+    JLabel lblQuickActions = new JLabel("  ACTIONS RAPIDES");
+    lblQuickActions.setFont(new Font("Segoe UI", Font.BOLD, 12));
+    lblQuickActions.setForeground(new Color(189, 195, 199));
+    lblQuickActions.setAlignmentX(Component.LEFT_ALIGNMENT);
+    lblQuickActions.setBorder(BorderFactory.createEmptyBorder(20, 25, 10, 0));
 
-// Section des actions rapides
-JLabel quickActionsTitle = new JLabel("  ACTIONS RAPIDES");
-quickActionsTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
-quickActionsTitle.setForeground(new Color(189, 195, 199));
-quickActionsTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-quickActionsTitle.setBorder(BorderFactory.createEmptyBorder(20, 25, 10, 0));
+    sidebarPanel.add(lblQuickActions);
 
-sidebarPanel.add(quickActionsTitle);
+    String[][] actionsList = {
+        {"🖨️", "Imprimer facture"},
+        {"📤", "Exporter rapport"},
+        {"🔍", "Recherche avancée"}
+    };
 
-String[][] quickActions = {
-    {"➕", "Nouvelle commande"},
-    {"🖨️", "Imprimer facture"},
-    {"📤", "Exporter rapport"},
-    {"🔍", "Recherche avancée"}
-};
+    for (String[] action : actionsList) {
+        JButton quickBtn = createQuickActionButton(action[0], action[1]);
+        quickBtn.addActionListener(e -> executeQuickAction(action[1]));
+        sidebarPanel.add(quickBtn);
+        sidebarPanel.add(Box.createVerticalStrut(3));
+    }
 
-for (String[] action : quickActions) {
-    JButton quickBtn = createQuickActionButton(action[0], action[1]);
-    quickBtn.addActionListener(e -> executeQuickAction(action[1]));
-    sidebarPanel.add(quickBtn);
-    sidebarPanel.add(Box.createVerticalStrut(3));
-}
+// ✅ WRAPPER SCROLLABLE POUR LA SIDEBAR
+    JScrollPane sidebarScroll = new JScrollPane(sidebarPanel);
+    sidebarScroll.setBorder(BorderFactory.createEmptyBorder());
+    sidebarScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+    sidebarScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+    sidebarScroll.getVerticalScrollBar().setUnitIncrement(16);
+    sidebarScroll.setBackground(PRIMARY_COLOR);
 
-add(sidebarPanel, BorderLayout.WEST);
-    
+    // ✅ DIMENSION FIXE POUR LA SIDEBAR
+    sidebarScroll.setPreferredSize(new Dimension(280, getHeight()));
+
+    add(sidebarScroll, BorderLayout.WEST);
+
     JButton[] navButtons = new JButton[menuItems.length];
     
     for (int i = 0; i < menuItems.length; i++) {
@@ -488,27 +501,8 @@ add(sidebarPanel, BorderLayout.WEST);
     sidebarPanel.add(Box.createVerticalGlue());
     
     // Section des actions rapides
-    JLabel lblQuickActions = new JLabel("  ACTIONS RAPIDES");
-    quickActionsTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
-    quickActionsTitle.setForeground(new Color(189, 195, 199));
-    quickActionsTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-    quickActionsTitle.setBorder(BorderFactory.createEmptyBorder(20, 25, 10, 0));
+
     
-    sidebarPanel.add(quickActionsTitle);
-    
-    String[][] actionsList = {  // ← RENOMMÉ
-    {"➕", "Nouvelle commande"},
-    {"🖨️", "Imprimer facture"},
-    {"📤", "Exporter rapport"},
-    {"🔍", "Recherche avancée"}
-};
-    
-    for (String[] action : quickActions) {
-        JButton quickBtn = createQuickActionButton(action[0], action[1]);
-        quickBtn.addActionListener(e -> executeQuickAction(action[1]));
-        sidebarPanel.add(quickBtn);
-        sidebarPanel.add(Box.createVerticalStrut(3));
-    }
     
     add(sidebarPanel, BorderLayout.WEST);
     
@@ -580,95 +574,10 @@ add(sidebarPanel, BorderLayout.WEST);
 /**
  * Crée un menu déroulant pour Aide & Support avec 3 sous-menus
  */
-private JPanel createAideMenu() {
-    JPanel menuPanel = new JPanel();
-    menuPanel.setLayout(new BoxLayout(menuPanel, BoxLayout.Y_AXIS));
-    menuPanel.setOpaque(false);
-    
-    // Bouton principal "Aide & Support"
-    JButton btnAide = createNavButton("❓", "Aide & Support ▼", false);
-    btnAide.setAlignmentX(Component.LEFT_ALIGNMENT);
-    btnAide.setMaximumSize(new Dimension(280, 50));
-    
-    // Panneau des sous-menus (caché par défaut)
-    JPanel subMenuPanel = new JPanel();
-    subMenuPanel.setLayout(new BoxLayout(subMenuPanel, BoxLayout.Y_AXIS));
-    subMenuPanel.setOpaque(false);
-    subMenuPanel.setBorder(BorderFactory.createEmptyBorder(0, 25, 0, 0));
-    subMenuPanel.setVisible(false);
-    
-    // Sous-menu 1 : Guide d'utilisation
-    JButton btnGuide = createSubMenuButton("📖", "Guide d'utilisation");
-    btnGuide.addActionListener(e -> new AideGuideFrame().setVisible(true));
-    
-    // Sous-menu 2 : Raccourcis clavier
-    JButton btnRaccourcis = createSubMenuButton("⌨️", "Raccourcis clavier");
-    btnRaccourcis.addActionListener(e -> new AideRaccourcisFrame().setVisible(true));
-    
-    // Sous-menu 3 : Contact & Support
-    JButton btnContact = createSubMenuButton("📞", "Contact & Support");
-    btnContact.addActionListener(e -> new AideContactFrame().setVisible(true));
-    
-    subMenuPanel.add(btnGuide);
-    subMenuPanel.add(Box.createVerticalStrut(3));
-    subMenuPanel.add(btnRaccourcis);
-    subMenuPanel.add(Box.createVerticalStrut(3));
-    subMenuPanel.add(btnContact);
-    
-    // Action pour afficher/cacher le sous-menu
-    btnAide.addActionListener(e -> {
-        subMenuPanel.setVisible(!subMenuPanel.isVisible());
-        
-        // Changer la flèche
-        if (subMenuPanel.isVisible()) {
-            btnAide.setText("<html><div style='text-align: left; padding-left: 10px;'>❓  Aide & Support ▲</div></html>");
-        } else {
-            btnAide.setText("<html><div style='text-align: left; padding-left: 10px;'>❓  Aide & Support ▼</div></html>");
-        }
-        
-        // Réorganiser le panel
-        menuPanel.revalidate();
-        menuPanel.repaint();
-    });
-    
-    menuPanel.add(btnAide);
-    menuPanel.add(subMenuPanel);
-    
-    return menuPanel;
-}
-
     /**
  * Crée un bouton de sous-menu stylisé
  */
-private JButton createSubMenuButton(String icon, String text) {
-    JButton button = new JButton(icon + "  " + text) {
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            
-            if (getModel().isRollover()) {
-                g2.setColor(new Color(255, 255, 255, 30));
-                g2.fillRect(0, 0, getWidth(), getHeight());
-            }
-            
-            g2.dispose();
-            super.paintComponent(g);
-        }
-    };
-    
-    button.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-    button.setForeground(new Color(200, 200, 200));
-    button.setHorizontalAlignment(SwingConstants.LEFT);
-    button.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
-    button.setContentAreaFilled(false);
-    button.setFocusPainted(false);
-    button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-    button.setMaximumSize(new Dimension(250, 36));
-    button.setAlignmentX(Component.LEFT_ALIGNMENT);
-    
-    return button;
-}
+
 
     /**
      * Creates new form MainMenuFrame
@@ -1059,6 +968,89 @@ private JPanel createCommandeCard(Commande cmd) {
     return card;
 }
 
+private void configurerRaccourcisClavier() {
+    // Ctrl + N : Nouvelle commande
+    getRootPane().registerKeyboardAction(
+        e -> new GestionCommandesFrame().setVisible(true),
+        KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK),
+        JComponent.WHEN_IN_FOCUSED_WINDOW
+    );
+    
+    // Ctrl + S : Enregistrer (exemple)
+    getRootPane().registerKeyboardAction(
+        e -> JOptionPane.showMessageDialog(this, "Enregistrement..."),
+        KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK),
+        JComponent.WHEN_IN_FOCUSED_WINDOW
+    );
+    
+    // Ctrl + F : Rechercher
+    getRootPane().registerKeyboardAction(
+        e -> JOptionPane.showMessageDialog(this, "Recherche..."),
+        KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK),
+        JComponent.WHEN_IN_FOCUSED_WINDOW
+    );
+    
+    // Ctrl + P : Imprimer
+    getRootPane().registerKeyboardAction(
+        e -> JOptionPane.showMessageDialog(this, "Impression..."),
+        KeyStroke.getKeyStroke(KeyEvent.VK_P, InputEvent.CTRL_DOWN_MASK),
+        JComponent.WHEN_IN_FOCUSED_WINDOW
+    );
+    
+    // F1 : Aide
+    getRootPane().registerKeyboardAction(
+        e -> new AideSupportFrame().setVisible(true),
+        KeyStroke.getKeyStroke(KeyEvent.VK_F1, 0),
+        JComponent.WHEN_IN_FOCUSED_WINDOW
+    );
+    
+    // Alt + 1 : Dashboard
+    getRootPane().registerKeyboardAction(
+        e -> {
+            // Rester sur dashboard
+        },
+        KeyStroke.getKeyStroke(KeyEvent.VK_1, InputEvent.ALT_DOWN_MASK),
+        JComponent.WHEN_IN_FOCUSED_WINDOW
+    );
+    
+    // Alt + 2 : Produits
+    getRootPane().registerKeyboardAction(
+        e -> showModule("produits"),
+        KeyStroke.getKeyStroke(KeyEvent.VK_2, InputEvent.ALT_DOWN_MASK),
+        JComponent.WHEN_IN_FOCUSED_WINDOW
+    );
+    
+    // Alt + 3 : Stock
+    getRootPane().registerKeyboardAction(
+        e -> showModule("stock"),
+        KeyStroke.getKeyStroke(KeyEvent.VK_3, InputEvent.ALT_DOWN_MASK),
+        JComponent.WHEN_IN_FOCUSED_WINDOW
+    );
+    
+    // Alt + 4 : Commandes
+    getRootPane().registerKeyboardAction(
+        e -> showModule("commandes"),
+        KeyStroke.getKeyStroke(KeyEvent.VK_4, InputEvent.ALT_DOWN_MASK),
+        JComponent.WHEN_IN_FOCUSED_WINDOW
+    );
+    
+    // Alt + 5 : Statistiques
+    getRootPane().registerKeyboardAction(
+        e -> showModule("stats"),
+        KeyStroke.getKeyStroke(KeyEvent.VK_5, InputEvent.ALT_DOWN_MASK),
+        JComponent.WHEN_IN_FOCUSED_WINDOW
+    );
+    
+    // Alt + 6 : Paramètres
+    getRootPane().registerKeyboardAction(
+        e -> showModule("parametres"),
+        KeyStroke.getKeyStroke(KeyEvent.VK_6, InputEvent.ALT_DOWN_MASK),
+        JComponent.WHEN_IN_FOCUSED_WINDOW
+    );
+    
+    // Alt + F4 : Quitter (déjà géré par défaut)
+}
+
 // ===== CARTE ALERTE PROPRE =====
 private JPanel createAlerteCard(Produit p) {
     JPanel card = new JPanel();
@@ -1446,76 +1438,63 @@ private JPanel createAlertItem(String produit, String quantite, String etat, Col
     }
     
     private void showModule(String module) {
-    switch(module) {
-        case "produits":
-            if (Session.getUtilisateur() != null) {
-                new GestionProduitFrame().setVisible(true);
-            }
-            break;
+        switch(module) {
+            case "produits":
+                if (Session.getUtilisateur() != null) {
+                    new GestionProduitFrame().setVisible(true);
+                }
+                break;
 
-        case "stock":
-            if (Session.isAdmin()) {
-                new GestionStockFrame().setVisible(true);
-            } else {
-                JOptionPane.showMessageDialog(this,
-                    "❌ Accès réservé aux administrateurs",
-                    "Permission refusée", JOptionPane.WARNING_MESSAGE);
-            }
-            break;
+            case "stock":
+                if (Session.isAdmin()) {
+                    new GestionStockFrame().setVisible(true);
+                } else {
+                    JOptionPane.showMessageDialog(this,
+                        "❌ Accès réservé aux administrateurs",
+                        "Permission refusée", JOptionPane.WARNING_MESSAGE);
+                }
+                break;
 
-        case "commandes":
-            // ✅ TOUT LE MONDE PEUT PRENDRE DES COMMANDES
-            JOptionPane.showMessageDialog(this,
-                "🛒 Module Commandes Clients\n\nEn développement",
-                "Module Commandes", JOptionPane.INFORMATION_MESSAGE);
-            break;
+            case "commandes":
+                // ✅ TOUT LE MONDE PEUT PRENDRE DES COMMANDES
+                new GestionCommandesFrame().setVisible(true);
+                break;
 
-        case "stats":
-            if (Session.isAdmin()) {
-                new StatistiquesFrame().setVisible(true);
-            } else {
-                JOptionPane.showMessageDialog(this,
-                    "❌ Accès réservé aux administrateurs",
-                    "Permission refusée", JOptionPane.WARNING_MESSAGE);
-            }
-            break;
+            case "stats":
+                if (Session.isAdmin()) {
+                    new StatistiquesFrame().setVisible(true);
+                } else {
+                    JOptionPane.showMessageDialog(this,
+                        "❌ Accès réservé aux administrateurs",
+                        "Permission refusée", JOptionPane.WARNING_MESSAGE);
+                }
+                break;
 
-        case "parametres":
-            // ✅ GESTION DES UTILISATEURS (ADMIN UNIQUEMENT)
-            if (Session.isAdmin()) {
-                new GestionUtilisateursFrame().setVisible(true);
-            } else {
-                JOptionPane.showMessageDialog(this,
-                    "❌ Accès réservé aux administrateurs",
-                    "Permission refusée", JOptionPane.WARNING_MESSAGE);
-            }
-            break;
+            case "parametres":
+                if (Session.isAdmin()) {
+                    new GestionUtilisateursFrame().setVisible(true);
+                } else {
+                    JOptionPane.showMessageDialog(this,
+                        "❌ Accès réservé aux administrateurs",
+                        "Permission refusée", JOptionPane.WARNING_MESSAGE);
+                }
+                break;
 
-        // ❌ ON SUPPRIME LE CASE "aide" CAR ON UTILISE DES SOUS-MENUS
-        // Les actions des sous-menus sont gérées directement dans createAideMenu()
+            case "aide":  // ← NOUVEAU CASE
+                // ✅ TOUT LE MONDE PEUT CONSULTER L'AIDE
+                new AideSupportFrame().setVisible(true);
+                break;
 
-        default:
-            // Dashboard - rien à faire
-            break;
+            default:
+                // Dashboard - rien à faire
+                break;
+        }
     }
-}
-     
+
     private void executeQuickAction(String action) {
         switch(action) {
-            case "Nouvelle commande":
-                JOptionPane.showMessageDialog(this,
-                    "Création d'une nouvelle commande client\n\n" +
-                    "Cette fonctionnalité ouvrira le formulaire\n" +
-                    "de création de commande.",
-                    "Nouvelle commande", JOptionPane.INFORMATION_MESSAGE);
-                break;
-            case "Imprimer facture":
-                JOptionPane.showMessageDialog(this,
-                    "Impression de facture\n\n" +
-                    "Génération et impression d'une facture\n" +
-                    "pour une commande sélectionnée.",
-                    "Impression", JOptionPane.INFORMATION_MESSAGE);
-                break;
+
+
             default:
                 JOptionPane.showMessageDialog(this,
                     "Action rapide : " + action,

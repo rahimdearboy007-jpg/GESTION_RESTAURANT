@@ -10,6 +10,8 @@ import com.gesrestaurant.model.Produit;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 
 public class CommandeDAO implements IDAO<Commande> {
     
@@ -219,4 +221,86 @@ public class CommandeDAO implements IDAO<Commande> {
         }
         return false;
     }
+    
+    public double getCAJour() {
+        String sql = "SELECT COALESCE(SUM(total), 0) FROM commande WHERE DATE(date_commande) = CURDATE() AND etat = 'VALIDÉE'";
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) return rs.getDouble(1);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    public double getCASemaine() {
+        String sql = "SELECT COALESCE(SUM(total), 0) FROM commande WHERE YEARWEEK(date_commande) = YEARWEEK(CURDATE()) AND etat = 'VALIDÉE'";
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) return rs.getDouble(1);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    public double getCAMois() {
+        String sql = "SELECT COALESCE(SUM(total), 0) FROM commande WHERE MONTH(date_commande) = MONTH(CURDATE()) AND YEAR(date_commande) = YEAR(CURDATE()) AND etat = 'VALIDÉE'";
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) return rs.getDouble(1);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+    
+    public double getCAMoisPrecedent() {
+        String sql = "SELECT COALESCE(SUM(total), 0) FROM commande " +
+                     "WHERE MONTH(date_commande) = MONTH(CURDATE() - INTERVAL 1 MONTH) " +
+                     "AND YEAR(date_commande) = YEAR(CURDATE() - INTERVAL 1 MONTH) " +
+                     "AND etat = 'VALIDÉE'";
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) return rs.getDouble(1);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+    
+    public Map<String, Double> getCA7Jours() {
+        Map<String, Double> caParJour = new LinkedHashMap<>();
+
+        // Initialiser tous les jours à 0
+        caParJour.put("Lundi", 0.0);
+        caParJour.put("Mardi", 0.0);
+        caParJour.put("Mercredi", 0.0);
+        caParJour.put("Jeudi", 0.0);
+        caParJour.put("Vendredi", 0.0);
+        caParJour.put("Samedi", 0.0);
+        caParJour.put("Dimanche", 0.0);
+
+        String sql = "SELECT DAYNAME(date_commande) as jour, SUM(total) as ca " +
+                     "FROM commande " +
+                     "WHERE date_commande >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) " +
+                     "AND date_commande < CURDATE() " + // Exclure aujourd'hui si besoin
+                     "AND etat = 'VALIDÉE' " +
+                     "GROUP BY DATE(date_commande)";
+
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                String jour = rs.getString("jour");
+                caParJour.put(jour, rs.getDouble("ca")); // Écrase le 0
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return caParJour;
+    }
+
+    
 }
