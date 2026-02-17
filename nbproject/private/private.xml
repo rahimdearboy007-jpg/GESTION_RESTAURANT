@@ -6,7 +6,6 @@
             <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/model/Categorie.java</file>
             <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/model/Produit.java</file>
             <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/model/MouvementStock.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/model/Commande.java</file>
             <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/model/LigneCommande.java</file>
             <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/model/Utilisateur.java</file>
             <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/dao/IDAO.java</file>
@@ -15,24 +14,6 @@
             <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/dao/UtilisateurDAO.java</file>
             <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/dao/CommandeDAO.java</file>
             <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/dao/LigneCommandeDAO.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/dao/MvtStockDAO.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/util/DatabaseConnection.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/service/ICategorieService.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/service/CategorieServiceImpl.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/service/IProduitService.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/service/ProduitServiceImpl.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/service/IUtilisateurService.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/service/UtilisateurServiceImpl.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/service/ICommandeService.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/service/CommandeServiceImpl.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/service/IMouvementStockService.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/service/MouvementStockServiceImpl.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/service/IStatistiqueService.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/service/StatistiqueServiceImpl.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/gest_restaurant/GEST_RESTAURANT.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/service/TestAllService.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/controller/AuthController.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/views/auth/LoginFrame.java</file>
             <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/views/MainMenuFrame.java</file>
             <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/views/GestionProduitFrame.java</file>
             <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/views/GestionCommandeFrame.java</file>
@@ -41,9 +22,8 @@
             <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/util/Session.java</file>
             <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/views/ProfilUtilisateurFrame.java</file>
             <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/views/StatistiquesFrame.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/views/AideGuideFrame.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/views/AideRaccourcisFrame.java</file>
-            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/views/AideContactFrame.java</file>
+            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/views/GestionCommandesFrame.java</file>
+            <file>file:/C:/Users/rahim/GESTION_RESTAURANT/src/com/gesrestaurant/views/AideSupportFrame.java</file>
         </group>
     </open-files>
 </project-private>
