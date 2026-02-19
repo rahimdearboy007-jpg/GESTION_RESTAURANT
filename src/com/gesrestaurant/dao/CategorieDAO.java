@@ -91,24 +91,25 @@ public class CategorieDAO implements IDAO<Categorie> {
     }
     
     @Override
-    public List<Categorie> findAll() {
-        List<Categorie> categories = new ArrayList<>();
-        String sql = "SELECT * FROM Categorie ORDER BY libelle";
+public List<Categorie> findAll() {
+    List<Categorie> categories = new ArrayList<>();
+    // ✅ Ajouter ORDER BY id
+    String sql = "SELECT * FROM Categorie ORDER BY id";  // ← Changé !
+    
+    try (Statement stmt = connection.createStatement();
+         ResultSet rs = stmt.executeQuery(sql)) {
         
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            
-            while (rs.next()) {
-                categories.add(new Categorie(
-                    rs.getInt("id"),
-                    rs.getString("libelle")
-                ));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
+        while (rs.next()) {
+            categories.add(new Categorie(
+                rs.getInt("id"),
+                rs.getString("libelle")
+            ));
         }
-        return categories;
+    } catch (SQLException e) {
+        e.printStackTrace();
     }
+    return categories;
+}
     
     // Méthode supplémentaire
     public Categorie findByLibelle(String libelle) {

@@ -54,14 +54,14 @@ public class GestionCommandesFrame extends javax.swing.JFrame {
     private DefaultTableModel tableModelPanier;
     private JLabel lblPrix, lblStock, lblTotal, lblEtat, lblNumeroCommande;
     private JTextField txtTable;
-    private JButton btnAjouter, btnSupprimerLigne, btnAnnulerCommande, btnValiderCommande, btnFacture;
+    private JButton btnAjouter, btnSupprimerLigne, btnAnnulerCommande, btnValiderCommande;
     
     // ===== COMPOSANTS UI - Onglet 2 : Historique =====
     private JTable tableHistorique;
     private DefaultTableModel tableModelHistorique;
     private JComboBox<String> comboFiltreEtat;
     private JTextField txtRechercheDate;
-    private JButton btnRechercher, btnVoirDetails, btnImprimerFacture;
+    private JButton btnRechercher, btnVoirDetails;
     private JLabel lblTotalJour;
     
     // ===== UTILISATEUR CONNECTÉ =====
@@ -336,20 +336,11 @@ public class GestionCommandesFrame extends javax.swing.JFrame {
         btnValiderCommande.setCursor(new Cursor(Cursor.HAND_CURSOR));
         btnValiderCommande.addActionListener(e -> validerCommande());
         
-        btnFacture = new JButton("🧾 Facture");
-        btnFacture.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        btnFacture.setBackground(ACCENT_COLOR);
-        btnFacture.setForeground(Color.WHITE);
-        btnFacture.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15));
-        btnFacture.setFocusPainted(false);
-        btnFacture.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnFacture.setEnabled(false);
-        btnFacture.addActionListener(e -> imprimerFacture());
+    
         
         actionPanel.add(btnSupprimerLigne);
         actionPanel.add(btnAnnulerCommande);
         actionPanel.add(btnValiderCommande);
-        actionPanel.add(btnFacture);
         
         bottomPanierPanel.add(totalPanel, BorderLayout.EAST);
         bottomPanierPanel.add(actionPanel, BorderLayout.WEST);
@@ -584,41 +575,86 @@ public class GestionCommandesFrame extends javax.swing.JFrame {
                 "Erreur", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        
+
         int quantite = (int) spinQuantite.getValue();
-        int stockRestant = stockTemporel.get(p.getId());
-        
-        if (quantite > stockRestant) {
+
+        // Vérification supplémentaire
+        if (quantite <= 0) {
             JOptionPane.showMessageDialog(this,
-                "Stock insuffisant !\nDisponible: " + stockRestant,
+                "La quantité doit être supérieure à 0",
                 "Erreur", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        
+
+        // Récupérer le stock temporaire de manière sécurisée
+        Integer stockRestantObj = stockTemporel.get(p.getId());
+        if (stockRestantObj == null) {
+            // Si pas dans le temporaire, utiliser le stock réel
+            stockRestantObj = p.getStockActuel();
+            stockTemporel.put(p.getId(), stockRestantObj);
+        }
+        int stockRestant = stockRestantObj;
+
+        if (quantite > stockRestant) {
+            JOptionPane.showMessageDialog(this,
+                "Stock insuffisant !\nDisponible: " + stockRestant + " unités",
+                "Erreur", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
         // Mettre à jour le stock temporaire
         stockTemporel.put(p.getId(), stockRestant - quantite);
-        
-        // Ajouter au tableau
+
+        // Ajouter au tableau - Version avec préservation des types
         double montant = quantite * p.getPrixVente();
+
+        // Créer un objet LignePanier pour stocker toutes les infos
+        Map<String, Object> ligne = new HashMap<>();
+        ligne.put("numero", tableModelPanier.getRowCount() + 1);
+        ligne.put("produit", p.getNom());
+        ligne.put("quantite", quantite);
+        ligne.put("prix", p.getPrixVente());
+        ligne.put("montant", montant);
+        ligne.put("produitId", p.getId());
+
+        // Ajouter au tableau avec formatage pour l'affichage
         tableModelPanier.addRow(new Object[]{
-            tableModelPanier.getRowCount() + 1,
-            p.getNom(),
-            quantite,
-            String.format("%,d", (int)p.getPrixVente()),
-            String.format("%,d", (int)montant)
+            ligne.get("numero"),
+            ligne.get("produit"),
+            ligne.get("quantite"),
+            String.format("%,d", (int)(double)ligne.get("prix")),  // Formatage pour affichage
+            montant  // ← ICI on garde le montant comme Double pour le calcul
         });
-        
+
+        // Mettre à jour le total
         calculerTotal();
         afficherInfosProduit();
     }
     
     private void calculerTotal() {
-        double total = 0;
+        double total = 0.0;
+
         for (int i = 0; i < tableModelPanier.getRowCount(); i++) {
-            String montantStr = (String) tableModelPanier.getValueAt(i, 4);
-            montantStr = montantStr.replace(" ", "");
-            total += Double.parseDouble(montantStr);
+            Object montantObj = tableModelPanier.getValueAt(i, 4);
+
+            if (montantObj instanceof Double) {
+                total += (Double) montantObj;
+            } else if (montantObj instanceof String) {
+                String montantStr = (String) montantObj;
+                // Enlever tout sauf chiffres et point décimal
+                montantStr = montantStr.replaceAll("[^\\d.]", "");
+                if (!montantStr.isEmpty()) {
+                    try {
+                        total += Double.parseDouble(montantStr);
+                    } catch (NumberFormatException e) {
+                        System.err.println("Erreur parsing montant: " + montantStr);
+                    }
+                }
+            } else if (montantObj instanceof Number) {
+                total += ((Number) montantObj).doubleValue();
+            }
         }
+
         lblTotal.setText(String.format("%,d F", (int)total));
     }
     
@@ -682,43 +718,66 @@ public class GestionCommandesFrame extends javax.swing.JFrame {
                 "Erreur", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        
+
         try {
-            // Récupérer le numéro de table
-            String tableStr = txtTable.getText().trim();
-            int tableNum = 0;
-            if (!tableStr.isEmpty()) {
-                try {
-                    tableNum = Integer.parseInt(tableStr);
-                } catch (NumberFormatException e) {
-                    JOptionPane.showMessageDialog(this,
-                        "Le numéro de table doit être un nombre",
-                        "Erreur", JOptionPane.ERROR_MESSAGE);
-                    return;
+            // ✅ Calculer le total
+            double total = 0;
+            for (int i = 0; i < tableModelPanier.getRowCount(); i++) {
+                Object montantObj = tableModelPanier.getValueAt(i, 4);
+                if (montantObj instanceof Double) {
+                    total += (Double) montantObj;
+                } else if (montantObj instanceof String) {
+                    String montantStr = (String) montantObj;
+                    montantStr = montantStr.replaceAll("[^\\d.]", "");
+                    if (!montantStr.isEmpty()) {
+                        total += Double.parseDouble(montantStr);
+                    }
+                } else if (montantObj instanceof Number) {
+                    total += ((Number) montantObj).doubleValue();
                 }
             }
-            
-            // Calculer le total
-            double total = 0;
-            String totalStr = lblTotal.getText().replace(" F", "").replace(" ", "");
-            total = Double.parseDouble(totalStr);
-            
-            // Créer la commande
+
+            // ✅ 1. CRÉER LA COMMANDE EN "EN_COURS"
             commandeEnCours.setTotal(total);
-            commandeEnCours.setEtat("VALIDÉE");
-            
+            commandeEnCours.setEtat("EN_COURS");
+
             if (commandeDAO.create(commandeEnCours)) {
-                // Créer les lignes de commande et mettre à jour le stock
-                for (int i = 0; i < tableModelPanier.getRowCount(); i++) {
+                System.out.println("✅ Commande créée avec ID: " + commandeEnCours.getId() + " (EN_COURS)");
+
+                int lignesCrees = 0;
+                int lignesTotales = tableModelPanier.getRowCount();
+
+                // ✅ 2. CRÉER LES LIGNES DE COMMANDE
+                for (int i = 0; i < lignesTotales; i++) {
                     String nomProduit = (String) tableModelPanier.getValueAt(i, 1);
                     int quantite = (int) tableModelPanier.getValueAt(i, 2);
-                    String prixStr = ((String) tableModelPanier.getValueAt(i, 3)).replace(" ", "");
-                    double prixUnitaire = Double.parseDouble(prixStr);
-                    double montantLigne = (double) Integer.parseInt(((String) tableModelPanier.getValueAt(i, 4)).replace(" ", ""));
-                    
+
+                    // Récupérer le prix
+                    double prixUnitaire = 0;
+                    Object prixObj = tableModelPanier.getValueAt(i, 3);
+                    if (prixObj instanceof String) {
+                        String prixStr = ((String) prixObj).replaceAll("[^\\d.]", "");
+                        prixUnitaire = Double.parseDouble(prixStr);
+                    } else if (prixObj instanceof Number) {
+                        prixUnitaire = ((Number) prixObj).doubleValue();
+                    }
+
+                    // Récupérer le montant
+                    double montantLigne = 0;
+                    Object montantObj = tableModelPanier.getValueAt(i, 4);
+                    if (montantObj instanceof String) {
+                        String montantStr = ((String) montantObj).replaceAll("[^\\d.]", "");
+                        montantLigne = Double.parseDouble(montantStr);
+                    } else if (montantObj instanceof Number) {
+                        montantLigne = ((Number) montantObj).doubleValue();
+                    }
+
                     // Trouver le produit
+                    boolean produitTrouve = false;
                     for (Produit p : produitsDisponibles) {
                         if (p.getNom().equals(nomProduit)) {
+                            produitTrouve = true;
+
                             // Créer la ligne de commande
                             LigneCommande ligne = new LigneCommande();
                             ligne.setCommandeId(commandeEnCours.getId());
@@ -726,42 +785,141 @@ public class GestionCommandesFrame extends javax.swing.JFrame {
                             ligne.setQuantite(quantite);
                             ligne.setPrixUnitaire(prixUnitaire);
                             ligne.setMontantLigne(montantLigne);
-                            ligneCommandeDAO.create(ligne);
-                            
-                            // Mettre à jour le stock réel
-                            p.setStockActuel(stockTemporel.get(p.getId()));
-                            produitDAO.update(p);
+
+                            boolean ligneCree = ligneCommandeDAO.create(ligne);
+                            if (ligneCree) {
+                                lignesCrees++;
+                                System.out.println("  ✅ Ligne " + i + " créée: " + nomProduit + " x" + quantite);
+                            } else {
+                                System.err.println("  ❌ Échec création ligne " + i);
+                            }
+
+                            // ✅ NE PAS DÉDUIRE LE STOCK MAINTENANT
                             break;
                         }
                     }
+
+                    if (!produitTrouve) {
+                        System.err.println("❌ Produit non trouvé: " + nomProduit);
+                    }
                 }
-                
+
+                System.out.println("✅ " + lignesCrees + " lignes créées sur " + lignesTotales);
+
+                // ✅ 3. MESSAGE DE SUCCÈS
                 JOptionPane.showMessageDialog(this,
-                    "✅ Commande validée avec succès !",
+                    "✅ Commande créée avec succès !\n" +
+                    "État: EN COURS (en attente de validation)\n" +
+                    lignesCrees + " produit(s) enregistré(s)",
                     "Succès", JOptionPane.INFORMATION_MESSAGE);
-                
-                btnFacture.setEnabled(true);
-                chargerHistorique(); // Rafraîchir l'historique
-                
-                // Proposer une nouvelle commande
+
+                // ✅ 4. RAFRAÎCHIR L'HISTORIQUE
+                chargerHistorique();
+
+                // ✅ 5. PROPOSER DE VALIDER MAINTENANT
                 int reponse = JOptionPane.showConfirmDialog(this,
-                    "Voulez-vous créer une nouvelle commande ?",
-                    "Nouvelle commande", JOptionPane.YES_NO_OPTION);
-                
+                    "Voulez-vous valider cette commande maintenant ?\n" +
+                    "(Cela déduira les produits du stock)",
+                    "Validation", JOptionPane.YES_NO_OPTION);
+
                 if (reponse == JOptionPane.YES_OPTION) {
-                    nouvelleCommande();
-                } else {
-                    // Réinitialiser pour une nouvelle commande mais garder la fenêtre ouverte
-                    nouvelleCommande();
+                    validerCommandeExistante(commandeEnCours.getId());
                 }
+
+                // ✅ 6. NOUVELLE COMMANDE
+                nouvelleCommande();
+
+            } else {
+                JOptionPane.showMessageDialog(this,
+                    "❌ Erreur lors de la création de la commande",
+                    "Erreur", JOptionPane.ERROR_MESSAGE);
             }
         } catch (Exception e) {
-            logger.severe("Erreur validation: " + e.getMessage());
+            logger.severe("❌ Erreur validation: " + e.getMessage());
+            e.printStackTrace();
             JOptionPane.showMessageDialog(this,
-                "❌ Erreur lors de la validation",
+                "❌ Erreur lors de la validation:\n" + e.getMessage(),
                 "Erreur", JOptionPane.ERROR_MESSAGE);
         }
     }
+    
+    private void validerCommandeExistante(int commandeId) {
+    try {
+        Commande commande = commandeDAO.read(commandeId);
+        if (commande == null) {
+            JOptionPane.showMessageDialog(this, "❌ Commande non trouvée");
+            return;
+        }
+
+        // ✅ 1. RÉCUPÉRER LES LIGNES DE COMMANDE
+        List<LigneCommande> lignes = ligneCommandeDAO.findByCommandeId(commandeId);
+        
+        if (lignes.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "❌ Aucune ligne trouvée");
+            return;
+        }
+
+        // ✅ 2. VÉRIFIER LE STOCK (en rechargeant les produits depuis la BDD)
+        boolean stockOK = true;
+        StringBuilder messageErreur = new StringBuilder();
+        
+        for (LigneCommande ligne : lignes) {
+            // 🔥 IMPORTANT : Recharger le produit depuis la BDD pour avoir le stock à jour
+            Produit produit = produitDAO.read(ligne.getProduit().getId());
+            
+            if (produit.getStockActuel() < ligne.getQuantite()) {
+                stockOK = false;
+                messageErreur.append("❌ ").append(produit.getNom())
+                    .append(": Stock=").append(produit.getStockActuel())
+                    .append(", Demandé=").append(ligne.getQuantite())
+                    .append("\n");
+            }
+        }
+
+        // ✅ 3. SI STOCK OK, VALIDER
+        if (stockOK) {
+            // Mettre à jour le stock
+            for (LigneCommande ligne : lignes) {
+                // Recharger le produit à nouveau
+                Produit produit = produitDAO.read(ligne.getProduit().getId());
+                int ancienStock = produit.getStockActuel();
+                int nouveauStock = ancienStock - ligne.getQuantite();
+                
+                produit.setStockActuel(nouveauStock);
+                produitDAO.update(produit);
+
+                System.out.println("📦 Stock déduit: " + produit.getNom() + 
+                    " (" + ancienStock + " → " + nouveauStock + ")");
+            }
+
+            // Changer l'état
+            commande.setEtat("VALIDÉE");
+            commandeDAO.update(commande);
+
+            JOptionPane.showMessageDialog(this,
+                "✅ Commande validée avec succès !\n" +
+                lignes.size() + " produit(s) déduit(s) du stock.",
+                "Succès", JOptionPane.INFORMATION_MESSAGE);
+
+            chargerHistorique();
+        } else {
+            JOptionPane.showMessageDialog(this,
+                "❌ Stock insuffisant pour valider la commande :\n" + messageErreur.toString(),
+                "Erreur", JOptionPane.ERROR_MESSAGE);
+        }
+
+    } catch (Exception e) {
+        logger.severe("❌ Erreur validation commande existante: " + e.getMessage());
+        e.printStackTrace();
+        JOptionPane.showMessageDialog(this,
+            "❌ Erreur lors de la validation",
+            "Erreur", JOptionPane.ERROR_MESSAGE);
+    }
+}
+    
+
+    
+
     
     private void imprimerFacture() {
         JOptionPane.showMessageDialog(this,
@@ -807,33 +965,28 @@ public class GestionCommandesFrame extends javax.swing.JFrame {
     }
     
     private void rechercherCommandes() {
-        String etat = (String) comboFiltreEtat.getSelectedItem();
-        String dateStr = txtRechercheDate.getText().trim();
-        
+        String etatFiltre = (String) comboFiltreEtat.getSelectedItem();
+
         try {
-            List<Commande> commandes;
-            
-            if (!"Tous".equals(etat) && !dateStr.isEmpty()) {
-                // Filtrer par état et date
-                SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
-                Date date = sdf.parse(dateStr);
-                commandes = commandeDAO.findByDate(new java.sql.Date(date.getTime()));
-                // Filtrer par état manuellement
-                commandes.removeIf(c -> !c.getEtat().equals(etat));
-            } else if (!"Tous".equals(etat)) {
-                commandes = commandeDAO.findByEtat(etat);
-            } else if (!dateStr.isEmpty()) {
-                SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
-                Date date = sdf.parse(dateStr);
-                commandes = commandeDAO.findByDate(new java.sql.Date(date.getTime()));
+            List<Commande> toutesLesCommandes = commandeDAO.findAll();
+            List<Commande> commandesFiltrees = new ArrayList<>();
+
+            // Filtrer selon l'état sélectionné
+            if ("Tous".equals(etatFiltre)) {
+                commandesFiltrees = toutesLesCommandes;
             } else {
-                commandes = commandeDAO.findAll();
+                for (Commande c : toutesLesCommandes) {
+                    if (c.getEtat().equals(etatFiltre)) {
+                        commandesFiltrees.add(c);
+                    }
+                }
             }
-            
+
+            // Mettre à jour le tableau
             tableModelHistorique.setRowCount(0);
             SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm");
-            
-            for (Commande c : commandes) {
+
+            for (Commande c : commandesFiltrees) {
                 tableModelHistorique.addRow(new Object[]{
                     c.getId(),
                     sdf.format(c.getDateCommande()),
@@ -843,14 +996,16 @@ public class GestionCommandesFrame extends javax.swing.JFrame {
                     "Voir détails"
                 });
             }
-            
+
+            // Afficher le nombre de résultats
+            System.out.println("🔍 Filtre: " + etatFiltre + " → " + commandesFiltrees.size() + " commandes");
+
         } catch (Exception e) {
             logger.severe("Erreur recherche: " + e.getMessage());
-            JOptionPane.showMessageDialog(this,
-                "Format de date invalide (JJ/MM/AAAA)",
-                "Erreur", JOptionPane.ERROR_MESSAGE);
         }
     }
+    
+   
     
     // ===== CLASSES POUR LES BOUTONS D'ACTION DANS L'HISTORIQUE =====
     class ActionsRenderer extends JPanel implements TableCellRenderer {
@@ -886,24 +1041,25 @@ public class GestionCommandesFrame extends javax.swing.JFrame {
         private JPanel panel;
         private JButton btnDetails;
         private int currentId;
-        
+
         public ActionsEditor() {
             panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 5));
             panel.setOpaque(true);
-            
+
             btnDetails = new JButton("📋 Détails");
             btnDetails.setFont(new Font("Segoe UI", Font.BOLD, 11));
             btnDetails.setBackground(ACCENT_COLOR);
             btnDetails.setForeground(Color.WHITE);
             btnDetails.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
             btnDetails.addActionListener(e -> {
-                afficherDetailsCommande(currentId);
+                // ✅ OUVRE LA FENÊTRE DE DÉTAILS
+                ouvrirFenetreDetails(currentId);
                 fireEditingStopped();
             });
-            
+
             panel.add(btnDetails);
         }
-        
+
         @Override
         public Component getTableCellEditorComponent(JTable table, Object value,
                 boolean isSelected, int row, int column) {
@@ -911,12 +1067,226 @@ public class GestionCommandesFrame extends javax.swing.JFrame {
             panel.setBackground(table.getSelectionBackground());
             return panel;
         }
-        
+
         @Override
         public Object getCellEditorValue() {
             return "Détails";
         }
     }
+    
+    private void ouvrirFenetreDetails(int commandeId) {
+        try {
+            // Récupérer la commande
+            Commande commande = commandeDAO.read(commandeId);
+            if (commande == null) {
+                JOptionPane.showMessageDialog(this, "Commande introuvable");
+                return;
+            }
+
+            // Récupérer les lignes de commande
+            List<LigneCommande> lignes = ligneCommandeDAO.findByCommandeId(commandeId);
+
+            // ✅ CRÉER UNE FENÊTRE DE DIALOGUE
+            JDialog dialog = new JDialog(this, "Détails de la commande #" + commandeId, true);
+            dialog.setLayout(new BorderLayout(10, 10));
+            dialog.setSize(700, 500);
+            dialog.setLocationRelativeTo(this);
+
+            // ===== PANEL HAUT : Infos commande =====
+            JPanel infoPanel = new JPanel(new GridBagLayout());
+            infoPanel.setBackground(PRIMARY_COLOR);
+            infoPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.insets = new Insets(5, 10, 5, 10);
+            gbc.fill = GridBagConstraints.HORIZONTAL;
+
+            // Titre
+            gbc.gridx = 0; gbc.gridy = 0;
+            gbc.gridwidth = 2;
+            JLabel title = new JLabel("📋 DÉTAILS DE LA COMMANDE");
+            title.setFont(new Font("Segoe UI", Font.BOLD, 18));
+            title.setForeground(Color.WHITE);
+            infoPanel.add(title, gbc);
+
+            // ID
+            gbc.gridy = 1; gbc.gridwidth = 1;
+            gbc.gridx = 0;
+            infoPanel.add(new JLabel("ID:"), gbc);
+            gbc.gridx = 1;
+            JLabel lblId = new JLabel(String.valueOf(commande.getId()));
+            lblId.setFont(new Font("Segoe UI", Font.BOLD, 14));
+            lblId.setForeground(Color.WHITE);
+            infoPanel.add(lblId, gbc);
+
+            // Date
+            gbc.gridy = 2; gbc.gridx = 0;
+            infoPanel.add(new JLabel("Date:"), gbc);
+            gbc.gridx = 1;
+            JLabel lblDate = new JLabel(new SimpleDateFormat("dd/MM/yyyy HH:mm").format(commande.getDateCommande()));
+            lblDate.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+            lblDate.setForeground(Color.WHITE);
+            infoPanel.add(lblDate, gbc);
+
+            // Table
+            gbc.gridy = 3; gbc.gridx = 0;
+            infoPanel.add(new JLabel("Table:"), gbc);
+            gbc.gridx = 1;
+            int numTable = (commande.getId() % 10 + 1);
+            JLabel lblTable = new JLabel("Table " + numTable);
+            lblTable.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+            lblTable.setForeground(Color.WHITE);
+            infoPanel.add(lblTable, gbc);
+
+            // Total
+            gbc.gridy = 4; gbc.gridx = 0;
+            infoPanel.add(new JLabel("Total:"), gbc);
+            gbc.gridx = 1;
+            JLabel lblTotal = new JLabel(String.format("%,d F", (int)commande.getTotal()));
+            lblTotal.setFont(new Font("Segoe UI", Font.BOLD, 16));
+            lblTotal.setForeground(SUCCESS_COLOR);
+            infoPanel.add(lblTotal, gbc);
+
+            // État
+            gbc.gridy = 5; gbc.gridx = 0;
+            infoPanel.add(new JLabel("État:"), gbc);
+            gbc.gridx = 1;
+            JLabel lblEtat = new JLabel(commande.getEtat());
+            lblEtat.setFont(new Font("Segoe UI", Font.BOLD, 14));
+            if ("VALIDÉE".equals(commande.getEtat())) {
+                lblEtat.setForeground(SUCCESS_COLOR);
+            } else if ("EN_COURS".equals(commande.getEtat())) {
+                lblEtat.setForeground(WARNING_COLOR);
+            } else {
+                lblEtat.setForeground(DANGER_COLOR);
+            }
+            infoPanel.add(lblEtat, gbc);
+
+            dialog.add(infoPanel, BorderLayout.NORTH);
+
+            // ===== PANEL CENTRAL : Liste des produits =====
+            String[] colonnes = {"#", "Produit", "Quantité", "Prix unitaire", "Montant"};
+            DefaultTableModel model = new DefaultTableModel(colonnes, 0) {
+                @Override
+                public boolean isCellEditable(int row, int column) { return false; }
+            };
+
+            for (int i = 0; i < lignes.size(); i++) {
+                LigneCommande ligne = lignes.get(i);
+                model.addRow(new Object[]{
+                    i + 1,
+                    ligne.getProduit().getNom(),
+                    ligne.getQuantite(),
+                    String.format("%,d F", (int)ligne.getPrixUnitaire()),
+                    String.format("%,d F", (int)ligne.getMontantLigne())
+                });
+            }
+
+            JTable table = new JTable(model);
+            table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            table.setRowHeight(30);
+            table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+            JScrollPane scrollPane = new JScrollPane(table);
+            scrollPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+            JPanel centerPanel = new JPanel(new BorderLayout());
+            centerPanel.setBackground(Color.WHITE);
+            centerPanel.setBorder(BorderFactory.createTitledBorder("📦 Produits commandés"));
+            centerPanel.add(scrollPane, BorderLayout.CENTER);
+
+            dialog.add(centerPanel, BorderLayout.CENTER);
+
+            // ===== PANEL BAS : Boutons d'action =====
+            JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+            buttonPanel.setBackground(Color.WHITE);
+
+            // Bouton VALIDER (visible seulement si EN_COURS)
+            if ("EN_COURS".equals(commande.getEtat())) {
+                JButton btnValider = new JButton("✅ Valider la commande");
+                btnValider.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                btnValider.setBackground(SUCCESS_COLOR);
+                btnValider.setForeground(Color.WHITE);
+                btnValider.setFocusPainted(false);
+                btnValider.setCursor(new Cursor(Cursor.HAND_CURSOR));
+                btnValider.addActionListener(ev -> {
+                    validerCommandeExistante(commandeId);
+                    dialog.dispose();
+                    chargerHistorique(); // Rafraîchir l'historique
+                });
+                buttonPanel.add(btnValider);
+
+                JButton btnAnnuler = new JButton("❌ Annuler la commande");
+                btnAnnuler.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                btnAnnuler.setBackground(DANGER_COLOR);
+                btnAnnuler.setForeground(Color.WHITE);
+                btnAnnuler.setFocusPainted(false);
+                btnAnnuler.setCursor(new Cursor(Cursor.HAND_CURSOR));
+                btnAnnuler.addActionListener(ev -> {
+                    annulerCommandeExistante(commandeId);
+                    dialog.dispose();
+                    chargerHistorique();
+                });
+                buttonPanel.add(btnAnnuler);
+            }
+
+            // Bouton FERMER
+            JButton btnFermer = new JButton("Fermer");
+            btnFermer.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            btnFermer.setBackground(new Color(200, 200, 200));
+            btnFermer.setFocusPainted(false);
+            btnFermer.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            btnFermer.addActionListener(ev -> dialog.dispose());
+            buttonPanel.add(btnFermer);
+
+            dialog.add(buttonPanel, BorderLayout.SOUTH);
+
+            dialog.setVisible(true);
+
+        } catch (Exception e) {
+            logger.severe("Erreur ouverture détails: " + e.getMessage());
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Erreur lors de l'ouverture des détails");
+        }
+    }
+    
+    private void annulerCommandeExistante(int commandeId) {
+    int confirm = JOptionPane.showConfirmDialog(this,
+        "❓ Voulez-vous vraiment annuler cette commande ?",
+        "Confirmation", JOptionPane.YES_NO_OPTION);
+    
+    if (confirm != JOptionPane.YES_OPTION) return;
+    
+    try {
+        Commande commande = commandeDAO.read(commandeId);
+        if (commande == null) return;
+        
+        // Si la commande était validée, remettre en stock
+        if ("VALIDÉE".equals(commande.getEtat())) {
+            List<LigneCommande> lignes = ligneCommandeDAO.findByCommandeId(commandeId);
+            for (LigneCommande ligne : lignes) {
+                Produit p = ligne.getProduit();
+                p.setStockActuel(p.getStockActuel() + ligne.getQuantite());
+                produitDAO.update(p);
+                System.out.println("📦 Stock remis: " + p.getNom() + " +" + ligne.getQuantite());
+            }
+        }
+        
+        commande.setEtat("ANNULÉE");
+        commandeDAO.update(commande);
+        
+        JOptionPane.showMessageDialog(this,
+            "✅ Commande annulée avec succès",
+            "Succès", JOptionPane.INFORMATION_MESSAGE);
+        
+        chargerHistorique();
+        
+    } catch (Exception e) {
+        logger.severe("Erreur annulation: " + e.getMessage());
+        e.printStackTrace();
+        JOptionPane.showMessageDialog(this, "❌ Erreur lors de l'annulation");
+    }
+}
     
     private void afficherDetailsCommande(int commandeId) {
         JOptionPane.showMessageDialog(this,

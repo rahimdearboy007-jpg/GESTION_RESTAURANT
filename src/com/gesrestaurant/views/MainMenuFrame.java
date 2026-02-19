@@ -470,22 +470,24 @@ private JPanel createHeaderPremium() {
     /**
  * MENU LATÉRAL JAUNE/ROUGE
  */
-private JScrollPane createMenuPremium() {  // ← Retourne JScrollPane, c'est correct
+private JScrollPane createMenuPremium() {
     JPanel sidebarPanel = new JPanel();
     sidebarPanel.setLayout(new BoxLayout(sidebarPanel, BoxLayout.Y_AXIS));
-    sidebarPanel.setBackground(new Color(0, 0, 0, 200));  // ← Color unie, pas de gradient
+    sidebarPanel.setBackground(new Color(0, 0, 0, 200));
     sidebarPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 20, 0));
-    sidebarPanel.setPreferredSize(new Dimension(280, getHeight()));
     
-    // Titre navigation
+    // ✅ NE PAS fixer la taille du panel
+    // sidebarPanel.setPreferredSize(new Dimension(280, getHeight())); ← SUPPRIMÉ
+    
+    // Titre navigation - PLUS GRAND
     JLabel navTitle = new JLabel("  NAVIGATION PRINCIPALE");
-    navTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
-    navTitle.setForeground(new Color(255, 255, 255, 150));
+    navTitle.setFont(new Font("Segoe UI", Font.BOLD, 16)); // ← PLUS GROS (était 12)
+    navTitle.setForeground(new Color(255, 215, 0, 255)); // Doré plus visible
     navTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
     navTitle.setBorder(BorderFactory.createEmptyBorder(10, 25, 20, 0));
     sidebarPanel.add(navTitle);
     
-    // Boutons de navigation avec dégradé jaune/rouge
+    // Boutons de navigation
     String[][] menuItems = {
         {"📊", "TABLEAU DE BORD", "dashboard"},
         {"📦", "PRODUITS & CATÉGORIES", "produits"},
@@ -496,22 +498,18 @@ private JScrollPane createMenuPremium() {  // ← Retourne JScrollPane, c'est co
         {"❓", "AIDE & SUPPORT", "aide"}
     };
     
-    // Pour chaque bouton, augmentez le padding
-
-// Entre les boutons
-    sidebarPanel.add(Box.createVerticalStrut(8));  // De 5 à 8
+    // Espace entre les boutons
+    sidebarPanel.add(Box.createVerticalStrut(8));
     
     for (int i = 0; i < menuItems.length; i++) {
         String[] item = menuItems[i];
         JButton btn = createNavButtonPremium(item[0], item[1], i == 0);
         final String action = item[2];
-        final int index = i;
         
-        btn.setBorder(BorderFactory.createEmptyBorder(18, 30, 18, 15));  // Plus d'espace vertical/horizontal
-
+        // ✅ TAILLE BEAUCOUP PLUS GRANDE
+        btn.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 15)); // ← PLUS GROS (était 15,25,15,10)
         
         btn.addActionListener(e -> {
-            // Reset all buttons
             for (Component comp : sidebarPanel.getComponents()) {
                 if (comp instanceof JButton) {
                     comp.setBackground(new Color(0, 0, 0, 0));
@@ -519,46 +517,22 @@ private JScrollPane createMenuPremium() {  // ← Retourne JScrollPane, c'est co
                     ((JButton) comp).putClientProperty("active", false);
                 }
             }
-            // Highlight current
             btn.putClientProperty("active", true);
             btn.setForeground(Color.WHITE);
-            btn.repaint();  // Force le repaint pour appliquer le gradient
-            
+            btn.repaint();
             showModule(action);
         });
         
         sidebarPanel.add(btn);
-        sidebarPanel.add(Box.createVerticalStrut(5));
+        sidebarPanel.add(Box.createVerticalStrut(8)); // Espace plus grand entre boutons
     }
     
-    // Actions rapides
-    JLabel lblQuickActions = new JLabel("  ACTIONS RAPIDES");
-    lblQuickActions.setFont(new Font("Segoe UI", Font.BOLD, 12));
-    lblQuickActions.setForeground(new Color(255, 255, 255, 150));
-    lblQuickActions.setAlignmentX(Component.LEFT_ALIGNMENT);
-    lblQuickActions.setBorder(BorderFactory.createEmptyBorder(20, 25, 10, 0));
-    sidebarPanel.add(lblQuickActions);
-    
-    String[][] actionsList = {
-        {"🖨️", "Imprimer facture"},
-        {"📤", "Exporter rapport"},
-        {"🔍", "Recherche avancée"}
-    };
-    
-    for (String[] action : actionsList) {
-        JButton quickBtn = createQuickActionButton(action[0], action[1]);
-        quickBtn.addActionListener(e -> executeQuickAction(action[1]));
-        sidebarPanel.add(quickBtn);
-        sidebarPanel.add(Box.createVerticalStrut(3));
-    }
-    
-    // Scroll pane pour la sidebar
     JScrollPane sidebarScroll = new JScrollPane(sidebarPanel);
     sidebarScroll.setBorder(BorderFactory.createEmptyBorder());
     sidebarScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
     sidebarScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
     sidebarScroll.getVerticalScrollBar().setUnitIncrement(16);
-    sidebarScroll.setBackground(new Color(0, 0, 0, 200));  // ← Color unie
+    sidebarScroll.setBackground(new Color(0, 0, 0, 200));
     sidebarScroll.setPreferredSize(new Dimension(280, getHeight()));
     
     return sidebarScroll;
@@ -571,29 +545,24 @@ private JScrollPane createMenuPremium() {  // ← Retourne JScrollPane, c'est co
  * BOUTON DE NAVIGATION PREMIUM avec dégradé
  */
 private JButton createNavButtonPremium(String icon, String text, boolean active) {
-    JButton button = new JButton("<html><div style='text-align: left; padding-left: 10px;'>" + 
+    JButton button = new JButton("<html><div style='text-align: left; padding: 8px 0;'>" + 
                                 icon + "  " + text + "</div></html>") {
         @Override
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             
-            // Vérifier si le bouton est actif (via paramètre ou propriété client)
             boolean isActive = active || Boolean.TRUE.equals(getClientProperty("active"));
             
             if (isActive) {
-                // ✅ Dégradé jaune/rouge pour le bouton actif
                 GradientPaint gradient = new GradientPaint(0, 0, GRAS_RED, 
                                                           getWidth(), 0, GRAS_GOLD);
                 g2.setPaint(gradient);
                 g2.fillRect(0, 0, getWidth(), getHeight());
-                
-                // Indicateur gauche
                 g2.setColor(GRAS_GOLD);
-                g2.fillRect(0, 0, 5, getHeight());
+                g2.fillRect(0, 0, 6, getHeight()); // Indicateur plus épais
             } else if (getModel().isRollover()) {
-                // ✅ Survol - fond semi-transparent
-                g2.setColor(new Color(255, 255, 255, 50));
+                g2.setColor(new Color(255, 255, 255, 80)); // Plus visible au survol
                 g2.fillRect(0, 0, getWidth(), getHeight());
             }
             
@@ -602,17 +571,18 @@ private JButton createNavButtonPremium(String icon, String text, boolean active)
         }
     };
     
-    button.setFont(new Font("Segoe UI", Font.BOLD, 14));
-    button.setForeground(active ? Color.WHITE : new Color(255, 255, 255, 200));
+    button.setFont(new Font("Segoe UI", Font.BOLD, 16)); // ← POLICE PLUS GRANDE (était 14)
+    button.setForeground(active ? Color.WHITE : new Color(255, 255, 255, 220));
     button.setHorizontalAlignment(SwingConstants.LEFT);
-    button.setBorder(BorderFactory.createEmptyBorder(15, 25, 15, 10));
-    button.setContentAreaFilled(false);  // ← CRUCIAL !
+    
+    // ✅ TAILLE PLUS GRANDE (20,30,20,15)
+    button.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 15));
+    
+    button.setContentAreaFilled(false);
     button.setFocusPainted(false);
     button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-    button.setMaximumSize(new Dimension(280, 50));
+    button.setMaximumSize(new Dimension(280, 70)); // ← HAUTEUR MAX PLUS GRANDE (était 50)
     button.setAlignmentX(Component.LEFT_ALIGNMENT);
-    
-    // Stocker l'état actif initial
     button.putClientProperty("active", active);
     
     return button;

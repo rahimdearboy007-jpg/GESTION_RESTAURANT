@@ -111,40 +111,41 @@ public class ProduitDAO implements IDAO<Produit> {
     }
     
     @Override
-    public List<Produit> findAll() {
-        List<Produit> produits = new ArrayList<>();
-        String sql = "SELECT p.*, c.libelle as categorie_libelle FROM Produit p " +
-                     "JOIN Categorie c ON p.categorie_id = c.id ORDER BY p.nom";
-        
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            
-            while (rs.next()) {
-                Categorie categorie = new Categorie(
-                    rs.getInt("categorie_id"),
-                    rs.getString("categorie_libelle")
-                );
-                
-                produits.add(new Produit(
-                    rs.getInt("id"),
-                    rs.getString("nom"),
-                    categorie,
-                    rs.getDouble("prix_vente"),
-                    rs.getInt("stock_actuel"),
-                    rs.getInt("seuil_alerte")
-                ));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return produits;
-    }
+public List<Produit> findAll() {
+    List<Produit> produits = new ArrayList<>();
+    // ✅ Ajouter ORDER BY id
+    String sql = "SELECT p.*, c.libelle as categorie_libelle FROM Produit p " +
+                 "JOIN Categorie c ON p.categorie_id = c.id " +
+                 "ORDER BY p.id";  // ← Changé !
     
+    try (Statement stmt = connection.createStatement();
+         ResultSet rs = stmt.executeQuery(sql)) {
+        
+        while (rs.next()) {
+            Categorie categorie = new Categorie(
+                rs.getInt("categorie_id"),
+                rs.getString("categorie_libelle")
+            );
+            
+            produits.add(new Produit(
+                rs.getInt("id"),
+                rs.getString("nom"),
+                categorie,
+                rs.getDouble("prix_vente"),
+                rs.getInt("stock_actuel"),
+                rs.getInt("seuil_alerte")
+            ));
+        }
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+    return produits;
+}
     // Méthodes supplémentaires
     public List<Produit> findByCategorie(int categorieId) {
         List<Produit> produits = new ArrayList<>();
         String sql = "SELECT p.*, c.libelle as categorie_libelle FROM Produit p " +
-                     "JOIN Categorie c ON p.categorie_id = c.id WHERE p.categorie_id = ? ORDER BY p.nom";
+                     "JOIN Categorie c ON p.categorie_id = c.id WHERE p.categorie_id = ? ORDER BY p.id";
         
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setInt(1, categorieId);
@@ -175,7 +176,7 @@ public class ProduitDAO implements IDAO<Produit> {
     String sql = "SELECT p.*, c.libelle as categorie_libelle FROM Produit p " +
                  "JOIN Categorie c ON p.categorie_id = c.id " +
                  "WHERE p.nom LIKE ? OR c.libelle LIKE ? " +
-                 "ORDER BY p.nom";
+                 "ORDER BY p.id";
     
     try (PreparedStatement stmt = connection.prepareStatement(sql)) {
         String pattern = "%" + motCle + "%";

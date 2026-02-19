@@ -10,6 +10,7 @@ import com.gesrestaurant.model.Produit;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import com.gesrestaurant.model.Categorie;
 
 public class LigneCommandeDAO implements IDAO<LigneCommande> {
     
@@ -48,30 +49,59 @@ public class LigneCommandeDAO implements IDAO<LigneCommande> {
     }
     
     @Override
-    public LigneCommande read(int id) {
-        String sql = "SELECT * FROM lignecommande WHERE id = ?";
-        
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setInt(1, id);
-            ResultSet rs = stmt.executeQuery();
-            
-            if (rs.next()) {
-                LigneCommande ligne = new LigneCommande(
-                    rs.getInt("id"),
-                    null, // Commande sera mis à jour après
-                    null, // Produit sera mis à jour après
-                    rs.getInt("quantite"),
-                    rs.getDouble("prix_unitaire")
-                );
-                // Récupération du montant_ligne si nécessaire
-                // ligne.setMontantLigne(rs.getDouble("montant_ligne"));
-                return ligne;
+public LigneCommande read(int id) {
+    String sql = "SELECT lc.*, " +
+                 "p.id as produit_id, p.nom as produit_nom, p.prix_vente, " +
+                 "c.id as categorie_id, c.libelle as categorie_libelle " +
+                 "FROM lignecommande lc " +
+                 "JOIN produit p ON lc.produit_id = p.id " +
+                 "LEFT JOIN categorie c ON p.categorie_id = c.id " +
+                 "WHERE lc.id = ?";
+
+    try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+        stmt.setInt(1, id);
+        ResultSet rs = stmt.executeQuery();
+
+        if (rs.next()) {
+            // Créer la catégorie
+            Categorie categorie = null;
+            int catId = rs.getInt("categorie_id");
+            if (!rs.wasNull()) {
+                categorie = new Categorie(catId, rs.getString("categorie_libelle"));
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
+
+            // Créer le produit
+            Produit produit = new Produit();
+            produit.setId(rs.getInt("produit_id"));
+            produit.setNom(rs.getString("produit_nom"));
+            produit.setPrixVente(rs.getDouble("prix_vente"));
+            produit.setCategorie(categorie);
+            
+            // Créer la commande (juste l'ID)
+            Commande commande = new Commande();
+            commande.setId(rs.getInt("commande_id"));
+
+            // Créer la ligne
+            LigneCommande ligne = new LigneCommande();
+            ligne.setId(rs.getInt("id"));
+            ligne.setCommande(commande);
+            ligne.setProduit(produit);
+            ligne.setQuantite(rs.getInt("quantite"));
+            ligne.setPrixUnitaire(rs.getDouble("prix_unitaire"));
+            
+            try {
+                ligne.setMontantLigne(rs.getDouble("montant_ligne"));
+            } catch (SQLException e) {
+                ligne.setMontantLigne(rs.getInt("quantite") * rs.getDouble("prix_unitaire"));
+            }
+
+            return ligne;
         }
-        return null;
+    } catch (SQLException e) {
+        e.printStackTrace();
     }
+    return null;
+}
     
     @Override
     public boolean update(LigneCommande ligne) {
@@ -136,29 +166,69 @@ public class LigneCommandeDAO implements IDAO<LigneCommande> {
     
     // Méthodes spécifiques
     public List<LigneCommande> findByCommandeId(int commandeId) {
-        List<LigneCommande> lignes = new ArrayList<>();
-        String sql = "SELECT * FROM lignecommande WHERE commande_id = ? ORDER BY id";
-        
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setInt(1, commandeId);
-            ResultSet rs = stmt.executeQuery();
-            
-            while (rs.next()) {
-                LigneCommande ligne = new LigneCommande(
-                    rs.getInt("id"),
-                    null,
-                    null,
-                    rs.getInt("quantite"),
-                    rs.getDouble("prix_unitaire")
-                );
-                // ligne.setMontantLigne(rs.getDouble("montant_ligne"));
-                lignes.add(ligne);
+    List<LigneCommande> lignes = new ArrayList<>();
+    
+    // ✅ REQUÊTE AVEC JOINTURE POUR CHARGER LES PRODUITS
+    String sql = "SELECT lc.*, " +
+                 "p.id as produit_id, p.nom as produit_nom, p.prix_vente, " +
+                 "c.id as categorie_id, c.libelle as categorie_libelle " +
+                 "FROM lignecommande lc " +
+                 "JOIN produit p ON lc.produit_id = p.id " +
+                 "LEFT JOIN categorie c ON p.categorie_id = c.id " +
+                 "WHERE lc.commande_id = ? " +
+                 "ORDER BY lc.id";
+
+    try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+        stmt.setInt(1, commandeId);
+        ResultSet rs = stmt.executeQuery();
+
+        while (rs.next()) {
+            // ✅ 1. Créer la catégorie
+            Categorie categorie = null;
+            int catId = rs.getInt("categorie_id");
+            if (!rs.wasNull()) {
+                categorie = new Categorie(catId, rs.getString("categorie_libelle"));
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
+
+            // ✅ 2. Créer le produit avec toutes ses infos
+            Produit produit = new Produit();
+            produit.setId(rs.getInt("produit_id"));
+            produit.setNom(rs.getString("produit_nom"));
+            produit.setPrixVente(rs.getDouble("prix_vente"));
+            produit.setCategorie(categorie);
+            
+            // ✅ 3. Créer la commande (juste l'ID)
+            Commande commande = new Commande();
+            commande.setId(commandeId);
+
+            // ✅ 4. Créer la ligne de commande
+            LigneCommande ligne = new LigneCommande();
+            ligne.setId(rs.getInt("id"));
+            ligne.setCommande(commande);
+            ligne.setProduit(produit);
+            ligne.setQuantite(rs.getInt("quantite"));
+            ligne.setPrixUnitaire(rs.getDouble("prix_unitaire"));
+            
+            // Récupérer montant_ligne s'il existe dans la table
+            try {
+                double montant = rs.getDouble("montant_ligne");
+                ligne.setMontantLigne(montant);
+            } catch (SQLException e) {
+                // Si la colonne n'existe pas, calculer
+                ligne.setMontantLigne(rs.getInt("quantite") * rs.getDouble("prix_unitaire"));
+            }
+
+            lignes.add(ligne);
         }
-        return lignes;
+        
+        System.out.println("📦 Lignes trouvées pour commande #" + commandeId + " : " + lignes.size());
+
+    } catch (SQLException e) {
+        System.err.println("❌ Erreur findByCommandeId: " + e.getMessage());
+        e.printStackTrace();
     }
+    return lignes;
+}
     
     public boolean deleteByCommandeId(int commandeId) {
         String sql = "DELETE FROM lignecommande WHERE commande_id = ?";
@@ -221,4 +291,6 @@ public class LigneCommandeDAO implements IDAO<LigneCommande> {
         }
         return top;
     }
+    
+    
 }

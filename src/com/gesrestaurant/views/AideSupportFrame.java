@@ -41,33 +41,70 @@ public class AideSupportFrame extends javax.swing.JFrame {
     }
     
     private void initComponentsCustom() {
-        setLayout(new BorderLayout());
-        getContentPane().setBackground(BG_PRIMARY);
-        
-        // ===== HEADER =====
-        add(createHeaderPanel(), BorderLayout.NORTH);
-        
-        // ===== ONGLETS =====
-        JTabbedPane tabbedPane = new JTabbedPane();
-        tabbedPane.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        tabbedPane.setBackground(BG_CARD);
-        tabbedPane.setBorder(BorderFactory.createLineBorder(BORDER_LIGHT, 1));
-        
-        // Onglet 1 : Guide d'utilisation
-        tabbedPane.addTab("📖 Guide d'utilisation", createGuidePanel());
-        
-        // Onglet 2 : Raccourcis clavier
-        tabbedPane.addTab("⌨️ Raccourcis clavier", createRaccourcisPanel());
-        
-        // Onglet 3 : Contact & Support
-        tabbedPane.addTab("📞 Contact & Support", createContactPanel());
-        
-        add(tabbedPane, BorderLayout.CENTER);
-        
-        // ===== FOOTER =====
-        add(createFooterPanel(), BorderLayout.SOUTH);
-    }
+    setLayout(new BorderLayout());
+    getContentPane().setBackground(BG_PRIMARY);
     
+    // ===== HEADER =====
+    add(createHeaderPanel(), BorderLayout.NORTH);
+    
+    // ===== PANEL PRINCIPAL SCROLLABLE =====
+    JPanel contentPanel = new JPanel(new BorderLayout());
+    contentPanel.setBackground(BG_PRIMARY);
+    
+    // ===== ONGLETS =====
+    JTabbedPane tabbedPane = new JTabbedPane();
+    tabbedPane.setFont(new Font("Segoe UI", Font.BOLD, 14));
+    tabbedPane.setBackground(BG_CARD);
+    tabbedPane.setBorder(BorderFactory.createLineBorder(BORDER_LIGHT, 1));
+    
+    // Onglet 1 : Guide d'utilisation
+    tabbedPane.addTab("📖 Guide d'utilisation", createGuidePanel());
+    
+    // Onglet 2 : Raccourcis clavier
+    tabbedPane.addTab("⌨️ Raccourcis clavier", createRaccourcisPanel());
+    
+    // Onglet 3 : Contact & Support
+    tabbedPane.addTab("📞 Contact & Support", createContactPanel());
+    
+    contentPanel.add(tabbedPane, BorderLayout.CENTER);
+    
+    // ✅ AJOUT D'UN JScrollPane AUTOUR DU CONTENU
+    JScrollPane mainScrollPane = new JScrollPane(contentPanel);
+    mainScrollPane.setBorder(BorderFactory.createEmptyBorder());
+    mainScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+    mainScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+    mainScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+    
+    // Personnalisation de la scrollbar (optionnel)
+    mainScrollPane.getVerticalScrollBar().setUI(new javax.swing.plaf.basic.BasicScrollBarUI() {
+        @Override
+        protected void configureScrollBarColors() {
+            this.thumbColor = new Color(255, 215, 0); // Doré
+            this.trackColor = new Color(0, 0, 0, 0);
+        }
+        
+        @Override
+        protected JButton createDecreaseButton(int orientation) {
+            return createZeroButton();
+        }
+        
+        @Override
+        protected JButton createIncreaseButton(int orientation) {
+            return createZeroButton();
+        }
+        
+        private JButton createZeroButton() {
+            JButton button = new JButton();
+            button.setPreferredSize(new Dimension(0, 0));
+            return button;
+        }
+    });
+    
+    add(mainScrollPane, BorderLayout.CENTER);
+    
+    // ===== FOOTER =====
+    add(createFooterPanel(), BorderLayout.SOUTH);
+}
     private JPanel createHeaderPanel() {
         JPanel header = new JPanel(new BorderLayout());
         header.setBackground(PRIMARY_COLOR);
@@ -91,60 +128,64 @@ public class AideSupportFrame extends javax.swing.JFrame {
         
         return header;
     }
-    
     private JPanel createGuidePanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(BG_CARD);
-        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+    JPanel panel = new JPanel(new BorderLayout());
+    panel.setBackground(BG_CARD);
+    panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+    
+    JTextArea textArea = new JTextArea();
+    textArea.setEditable(false);
+    textArea.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+    textArea.setBackground(BG_CARD);
+    textArea.setText(
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
         
-        JTextArea textArea = new JTextArea();
-        textArea.setEditable(false);
-        textArea.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        textArea.setBackground(BG_CARD);
-        textArea.setText(
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
-            
-            "🔐 CONNEXION\n" +
-            "────────────\n" +
-            "• Login    : votre identifiant (admin ou employé)\n" +
-            "• Mot de passe : votre mot de passe personnel\n\n" +
-            
-            "📦 GESTION DES PRODUITS\n" +
-            "──────────────────────\n" +
-            "• [➕] Ajouter un nouveau produit\n" +
-            "• [✏️] Modifier un produit existant\n" +
-            "• [🗑️] Supprimer un produit\n" +
-            "• [🔍] Rechercher un produit\n\n" +
-            
-            "📈 GESTION DU STOCK\n" +
-            "──────────────────\n" +
-            "• ENTRÉE : ajouter du stock (achat, réapprovisionnement)\n" +
-            "• SORTIE : retirer du stock (vente, perte, inventaire)\n" +
-            "• Consultation de l'historique des mouvements\n" +
-            "• Alertes automatiques quand le stock est bas\n\n" +
-            
-            "🛒 COMMANDES CLIENTS\n" +
-            "───────────────────\n" +
-            "• Créer une nouvelle commande\n" +
-            "• Ajouter des produits au panier\n" +
-            "• Valider la commande (met à jour le stock)\n" +
-            "• Consulter l'historique des commandes\n\n" +
-            
-            "👥 GESTION DES UTILISATEURS\n" +
-            "──────────────────────────\n" +
-            "• [ADMIN] Créer, modifier, supprimer des comptes\n" +
-            "• Attribution des rôles (ADMIN / EMPLOYE)\n" +
-            "• Changement de mot de passe\n\n" +
-            
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        );
+        "🔐 CONNEXION\n" +
+        "────────────\n" +
+        "• Login    : votre identifiant (admin ou employé)\n" +
+        "• Mot de passe : votre mot de passe personnel\n\n" +
         
-        JScrollPane scrollPane = new JScrollPane(textArea);
-        scrollPane.setBorder(BorderFactory.createLineBorder(BORDER_LIGHT, 1));
-        panel.add(scrollPane, BorderLayout.CENTER);
+        "📦 GESTION DES PRODUITS\n" +
+        "──────────────────────\n" +
+        "• [➕] Ajouter un nouveau produit\n" +
+        "• [✏️] Modifier un produit existant\n" +
+        "• [🗑️] Supprimer un produit\n" +
+        "• [🔍] Rechercher un produit\n\n" +
         
-        return panel;
-    }
+        "📈 GESTION DU STOCK\n" +
+        "──────────────────\n" +
+        "• ENTRÉE : ajouter du stock\n" +
+        "• SORTIE : retirer du stock\n" +
+        "• Consultation de l'historique\n" +
+        "• Alertes automatiques quand le stock est bas\n\n" +
+        
+        "🛒 COMMANDES CLIENTS\n" +
+        "───────────────────\n" +
+        "• Créer une nouvelle commande\n" +
+        "• Ajouter des produits au panier\n" +
+        "• Valider la commande\n" +
+        "• Consulter l'historique\n\n" +
+        
+        "👥 GESTION DES UTILISATEURS\n" +
+        "──────────────────────────\n" +
+        "• [ADMIN] Créer, modifier, supprimer des comptes\n" +
+        "• Attribution des rôles (ADMIN / EMPLOYE)\n" +
+        "• Changement de mot de passe\n\n" +
+        
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    );
+    
+    // ✅ IMPORTANT : Permettre au JTextArea de prendre toute la hauteur
+    textArea.setCaretPosition(0);
+    
+    JScrollPane textScrollPane = new JScrollPane(textArea);
+    textScrollPane.setBorder(BorderFactory.createLineBorder(BORDER_LIGHT, 1));
+    panel.add(textScrollPane, BorderLayout.CENTER);
+    
+    return panel;
+}
+    
+
     
     private JPanel createRaccourcisPanel() {
         JPanel panel = new JPanel(new BorderLayout());
@@ -182,16 +223,12 @@ public class AideSupportFrame extends javax.swing.JFrame {
         String[][] raccourcis = {
             {"Ctrl + N", "Nouvelle commande"},
             {"Ctrl + S", "Enregistrer"},
-            {"Ctrl + F", "Rechercher"},
-            {"Ctrl + P", "Imprimer facture"},
-            {"F1", "Aide"},
             {"Alt + 1", "Dashboard"},
             {"Alt + 2", "Produits & Catégories"},
             {"Alt + 3", "Mouvements de Stock"},
             {"Alt + 4", "Commandes Clients"},
             {"Alt + 5", "Statistiques"},
             {"Alt + 6", "Paramètres système"},
-            {"Alt + F4", "Quitter l'application"}
         };
         
         for (int i = 0; i < raccourcis.length; i++) {
@@ -233,7 +270,7 @@ public class AideSupportFrame extends javax.swing.JFrame {
         
         // Titre restaurant
         gbc.gridx = 0; gbc.gridy = 0;
-        JLabel restoTitle = new JLabel("🍽️ RESTAURANT DELICE");
+        JLabel restoTitle = new JLabel("🍽️ RESTAURANT GRAS PALACE");
         restoTitle.setFont(new Font("Segoe UI", Font.BOLD, 20));
         restoTitle.setForeground(PRIMARY_COLOR);
         card.add(restoTitle, gbc);
