@@ -17,6 +17,12 @@ public class CategorieDAO implements IDAO<Categorie> {
         this.connection = connection;
     }
     
+    public Connection getConnection() {
+        return this.connection;
+    }
+    
+   
+    
     @Override
     public boolean create(Categorie categorie) {
         String sql = "INSERT INTO Categorie (libelle) VALUES (?)";
